@@ -1,0 +1,11 @@
+**/.git
+**/.gitignore
+**/node_modules
+**/vendor
+**/dist
+**/public/build
+**/__pycache__
+**/*.pyc
+.env
+.env.backup
+.env.production
