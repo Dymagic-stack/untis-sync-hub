@@ -13,8 +13,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . ./
-RUN npm run build \
-    && composer dump-autoload --optimize --no-dev
+RUN npm run build
 
 RUN mkdir -p /run/nginx /var/www/html/storage/framework/cache /var/www/html/storage/framework/sessions \
     /var/www/html/storage/framework/views /var/www/html/storage/logs \
@@ -27,4 +26,4 @@ RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["php-fpm", "-F"]
+CMD ["nginx", "-g", "daemon off;"]

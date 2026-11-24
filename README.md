@@ -1,46 +1,58 @@
 # atiw-sync-hub
 
-Laravel/Vue-Anwendung zur Erfassung, Prüfung und Synchronisierung von Fehlzeiten am ATIW Berufskolleg Paderborn.
+Laravel-/Vue-Anwendung zur Validierung, Dokumentation und Delta-Erkennung von Fehlzeiten. Die produktive WebUntis-Schnittstelle wird ausschließlich lesend abgebildet; für Entwicklung und Tests steht eine OpenUntis-Mock-API mit synthetischen Daten zur Verfügung.
 
-## Struktur
+## Architektur
 
-- `app/`, `routes/`, `database/`, `resources/` – Laravel-Backend und Vue-Frontend
-- `openuntis-mock/` – isolierte synthetische Test-API
-- `docker-compose.yml` – lokaler Produktivstack
-- `Dockerfile` – PHP-FPM, Nginx und Vue-Build
+- PHP 8.3 / Laravel 12 Backend
+- Vue 3 / Vite Frontend
+- SQLite-Datenbank
+- OpenUntis-Mock für synthetische Stammdaten und Fehlzeiten
+- Docker Compose für reproduzierbare lokale Ausführung
 
-## Lokaler Start
+## Lokales Deployment mit Docker
 
 ```powershell
-docker compose up --build
+docker compose up --build -d
+docker compose exec app php artisan migrate --force
 ```
 
-Die Anwendung ist anschließend unter `http://localhost:8000` verfügbar.
+Nach dem Start:
 
-## Entwicklung ohne Docker
+- Anwendung: <http://localhost:8080>
+- Mock-API: <http://localhost:8000>
 
-Laravel benötigt PHP 8.3, Composer und Node.js:
+Stoppen:
+
+```powershell
+docker compose down
+```
+
+## Lokale Entwicklung ohne Docker
+
+Voraussetzungen: PHP 8.2+, Composer und Node.js 20+.
 
 ```powershell
 composer install
-npm install
-copy .env.example .env
+Copy-Item .env.example .env
 php artisan key:generate
 php artisan migrate
+npm install
+npm run build
+
 php artisan serve
-npm run dev
+node openuntis-mock/mock-server.cjs
 ```
 
-## Datenbank
-
-Standardmäßig wird SQLite verwendet. Für eine lokale Neuinitialisierung:
+Laravel läuft standardmäßig unter <http://localhost:8000>, daher sollte der Mock in diesem Modus auf einem anderen Port gestartet werden:
 
 ```powershell
-php artisan migrate:fresh
+$env:MOCK_PORT="8001"
+node openuntis-mock/mock-server.cjs
 ```
 
-## Sicherheit
+## Produktionsumgebung
 
-- Keine echten Schülerdaten verwenden.
-- `.env` enthält keine Produktivgeheimnisse und wird nicht versioniert.
-- Der WebUntis-Zugriff erfolgt ausschließlich lesend; der Mock liefert synthetische Daten.
+Für den Containerstart können Umgebungswerte wie `APP_KEY`, `APP_URL`, `MOCK_API_URL`, `DB_CONNECTION` und Session-/Cache-Treiber gesetzt werden. `APP_KEY` muss stabil und geheim bleiben.
+
+Die SQLite-Datenbank muss persistent gemountet oder durch eine andere Laravel-kompatible Datenbank ersetzt werden.

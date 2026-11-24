@@ -1,8 +1,10 @@
-FROM node:22-alpine
+FROM node:20-alpine
+
 WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev
-COPY mock-server.cjs ./
-COPY sample-data ./sample-data
+COPY . ./
+
+ENV MOCK_PORT=8000
 EXPOSE 8000
 CMD ["node", "mock-server.cjs"]
