@@ -13,9 +13,14 @@ Laravel-/Vue-Anwendung zur Validierung, Dokumentation und Delta-Erkennung von Fe
 ## Lokales Deployment mit Docker
 
 ```powershell
+# Optional: festen Schlüssel zwischen Restarts verwenden
+$env:APP_KEY = "base64:..."
+
+# APP_URL bei anderer Domain ersetzen
 docker compose up --build -d
-docker compose exec app php artisan migrate --force
 ```
+
+Der Container erstellt die SQLite-Datenbank bei jedem Start automatisch und führt Migrationen aus. Datenbank und Laravel-Storage werden über benannte Docker-Volumes persistent gehalten.
 
 Nach dem Start:
 
@@ -26,6 +31,12 @@ Stoppen:
 
 ```powershell
 docker compose down
+```
+
+Die Daten bleiben bei `docker compose down` erhalten. Für eine vollständige Bereinigung:
+
+```powershell
+docker compose down -v
 ```
 
 ## Lokale Entwicklung ohne Docker
@@ -39,12 +50,10 @@ php artisan key:generate
 php artisan migrate
 npm install
 npm run build
-
 php artisan serve
-node openuntis-mock/mock-server.cjs
 ```
 
-Laravel läuft standardmäßig unter <http://localhost:8000>, daher sollte der Mock in diesem Modus auf einem anderen Port gestartet werden:
+In einem zweiten Terminal:
 
 ```powershell
 $env:MOCK_PORT="8001"
@@ -53,6 +62,4 @@ node openuntis-mock/mock-server.cjs
 
 ## Produktionsumgebung
 
-Für den Containerstart können Umgebungswerte wie `APP_KEY`, `APP_URL`, `MOCK_API_URL`, `DB_CONNECTION` und Session-/Cache-Treiber gesetzt werden. `APP_KEY` muss stabil und geheim bleiben.
-
-Die SQLite-Datenbank muss persistent gemountet oder durch eine andere Laravel-kompatible Datenbank ersetzt werden.
+Für einen produktiven Host müssen `APP_URL`, `APP_KEY` und `MOCK_API_URL` gesetzt werden. Die SQLite-Datenbank muss persistent gemountet oder durch eine andere Laravel-kompatible Datenbank ersetzt werden.
