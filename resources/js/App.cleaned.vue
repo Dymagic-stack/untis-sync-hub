@@ -172,6 +172,21 @@ watch(seatingClass, async () => {
   await loadSeating()
   if (!Object.keys(seating.value).length) seating.value = initialSeatMap()
 })
+
+const untisAbsenceTab = ref('Meine Abwesenheiten')
+const untisClassFilter = ref('Alle')
+const untisStatusFilter = ref('Alle')
+const untisAbsenceSearch = ref('')
+
+const untisAbsences = computed(() => {
+  const search = untisAbsenceSearch.value.toLowerCase()
+  return (dashboard.value.absences || []).filter(absence => {
+    const matchesClass = untisClassFilter.value === 'Alle' || absence.className === untisClassFilter.value
+    const matchesStatus = untisStatusFilter.value === 'Alle' || absence.status === untisStatusFilter.value
+    const matchesSearch = !search || `${absence.studentName} ${absence.reason} ${absence.className}`.toLowerCase().includes(search)
+    return matchesClass && matchesStatus && matchesSearch
+  })
+})
 </script>
 
 <template>
@@ -267,7 +282,35 @@ watch(seatingClass, async () => {
       <header class="flex h-16 items-center justify-between border-b bg-white px-5"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-600 font-black text-white">WU</div><div><p class="text-sm font-bold">Untis Demo Schule</p><p class="text-xs text-slate-500">WebUntis</p></div></div><div class="flex gap-2"><button @click="mode = 'sync'" class="rounded bg-sky-600 px-4 py-2 text-sm font-bold text-white">Zum Sync-Hub</button><button @click="mode = 'moodle'" class="rounded border px-4 py-2 text-sm font-bold">Zu Moodle</button></div></header>
       <div class="flex min-h-[calc(100vh-64px)]"><aside class="w-56 border-r bg-white p-3"><button v-for="menu in ['Stundenplan','Fehlzeiten','Klassen','Schüler','Unterricht','Logs','Vergleiche']" :key="menu" @click="activeMenu = menu" :class="['mb-1 w-full rounded px-3 py-2 text-left', activeMenu === menu ? 'bg-orange-50 font-bold text-orange-700' : 'text-slate-600']">{{ menu }}</button></aside><main class="flex-1 p-5"><div class="mb-5 flex justify-between"><h1 class="text-2xl font-bold">{{ activeMenu }}</h1><button v-if="activeMenu === 'Fehlzeiten'" @click="absenceOpen = true" class="rounded bg-orange-600 px-3 py-2 text-sm font-bold text-white">Fehlzeit</button><button v-if="activeMenu === 'Stundenplan'" @click="lessonOpen = true" class="rounded bg-orange-600 px-3 py-2 text-sm font-bold text-white">Stunde</button></div>
         <div v-if="activeMenu === 'Stundenplan'" class="overflow-auto rounded-xl border bg-white"><div class="grid grid-cols-[70px_repeat(5,minmax(140px,1fr))]"><div></div><div v-for="day in days" :key="day" class="border-b border-r px-2 py-3 text-center text-xs font-bold">{{ day }}</div><template v-for="time in ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00']" :key="time"><div class="border-b border-r py-12 pr-2 text-right text-xs text-slate-400">{{ time }}</div><div v-for="dayIndex in 5" :key="dayIndex" class="min-h-24 border-b border-r p-1"><div v-if="lessonForDay(dayIndex - 1)" class="h-full rounded border-l-4 border-orange-400 bg-orange-50 p-2 text-xs"><p class="font-bold">{{ lessonForDay(dayIndex - 1).subject?.name }}</p><p>{{ lessonForDay(dayIndex - 1).room?.name }}</p></div></div></template></div></div>
-        <div v-if="activeMenu === 'Fehlzeiten'" class="rounded-xl border bg-white p-5"><table class="w-full text-left text-sm"><thead><tr class="border-b"><th>Schüler</th><th>Klasse</th><th>Datum</th><th>Grund</th><th>Status</th><th></th></tr></thead><tbody><tr v-for="absence in dashboard.absences" :key="absence.id" class="border-b"><td class="py-3 font-bold">{{ absence.studentName }}</td><td>{{ absence.className }}</td><td>{{ absence.date }}</td><td>{{ absence.reason }}</td><td>{{ absence.status }}</td><td><button @click="deleteAbsence(absence)" class="text-xs font-bold text-red-700">Löschen</button></td></tr></tbody></table></div>
+        <div v-if="activeMenu === 'Fehlzeiten'" class="overflow-hidden rounded-sm border border-slate-200 bg-white">
+          <div class="flex h-12 items-end gap-8 border-b px-5 text-sm">
+            <button @click="untisAbsenceTab = 'Meine Abwesenheiten'" :class="['h-full px-1', untisAbsenceTab === 'Meine Abwesenheiten' ? 'border-b-2 border-red-400 font-medium text-red-500' : 'text-slate-400']">Meine Abwesenheiten</button>
+            <button @click="untisAbsenceTab = 'Fehlzeiten'" :class="['h-full px-1', untisAbsenceTab === 'Fehlzeiten' ? 'border-b-2 border-red-400 font-medium text-red-500' : 'text-slate-400']">Fehlzeiten</button>
+          </div>
+
+          <div class="flex items-center gap-3 border-b px-5 py-4">
+            <button class="text-slate-300" aria-label="Vorheriger Zeitraum">←</button>
+            <input type="date" value="2026-11-24" class="rounded border border-slate-200 px-3 py-2 text-xs text-slate-500"/>
+            <button class="text-slate-300" aria-label="Nächster Zeitraum">→</button>
+            <input v-model="untisAbsenceSearch" placeholder="Select…" class="ml-2 w-52 rounded border px-3 py-2 text-xs"/>
+            <select v-model="untisClassFilter" class="ml-2 rounded border px-3 py-2 text-xs"><option>Alle</option><option v-for="schoolClass in classes" :key="schoolClass.id" :value="schoolClass.name">{{ schoolClass.name }}</option></select>
+            <select v-model="untisStatusFilter" class="ml-2 rounded border px-3 py-2 text-xs"><option>Alle</option><option value="UNCONFIRMED">UNCONFIRMED</option><option value="CONFIRMED">CONFIRMED</option><option value="EXCUSED">EXCUSED</option></select>
+            <div class="ml-auto flex items-center gap-3 text-slate-400"><button class="rounded border px-2 py-1 text-xs">▤</button><button class="rounded border px-2 py-1 text-xs">▧</button><button class="rounded border px-2 py-1 text-xs">▣</button></div>
+          </div>
+
+          <div class="px-5 py-5">
+            <table class="w-full border-collapse text-left text-xs">
+              <thead><tr class="h-10 border-b text-slate-500"><th class="w-12"></th><th class="w-28 font-normal">Von</th><th class="w-28 font-normal">Bis</th><th class="font-normal">Abwesenheitsgrund</th><th class="w-44 font-normal">Status</th><th class="w-40 font-normal">Text</th></tr></thead>
+              <tbody>
+                <tr v-for="absence in untisAbsences" :key="absence.id" class="h-16 border-b border-slate-100"><td><input type="checkbox" class="ml-1"/></td><td><div class="flex items-center gap-2"><span class="text-slate-400">◔</span><span>{{ absence.date }}<br/><span class="text-slate-400">09:55</span></span></div></td><td>{{ absence.date }}<br/><span class="text-slate-400">15:25</span></td><td><p class="font-medium text-slate-700">{{ absence.reason }}</p><p class="mt-1 text-slate-400">{{ absence.studentName }} · {{ absence.className }}</p></td><td><span :class="['rounded px-2 py-1 text-[10px] font-bold text-white', absence.status === 'EXCUSED' ? 'bg-emerald-500' : absence.status === 'CONFIRMED' ? 'bg-sky-500' : 'bg-amber-500']">{{ absence.status === 'EXCUSED' ? 'entschuldigt mit Attest/Fremdbeleg' : absence.status === 'CONFIRMED' ? 'bestätigt' : 'nicht bestätigt' }}</span></td><td class="text-slate-400">{{ absence.status === 'CONFIRMED' ? 'zur Beerdigung' : '—' }}</td></tr>
+              </tbody>
+            </table>
+            <p v-if="!untisAbsences.length" class="py-12 text-center text-sm text-slate-400">Keine Abwesenheiten gefunden.</p>
+            <div class="mt-2 border-t px-1 pt-3 text-xs text-slate-500">{{ untisAbsences.length }} Elemente</div>
+          </div>
+
+          <div class="border-t px-5 py-4"><button @click="absenceOpen = true" class="rounded-full border px-5 py-2 text-sm text-slate-500">Entschuldigungsschreiben drucken →</button></div>
+        </div>
         <div v-if="activeMenu === 'Klassen'" class="grid gap-3 md:grid-cols-3"><div v-for="schoolClass in classes" :key="schoolClass.id" class="rounded border bg-white p-4"><p class="font-bold">{{ schoolClass.name }}</p><p class="text-xs text-slate-500">{{ schoolClass.track }}</p></div></div>
         <div v-if="activeMenu === 'Schüler'" class="rounded border bg-white p-5"><input v-model="studentFilter" class="mb-4 w-full rounded border px-3 py-2" placeholder="Schüler suchen"/><table class="w-full text-sm"><thead><tr><th>Schüler</th><th>Klasse</th><th>Richtung</th></tr></thead><tbody><tr v-for="student in visibleStudents" :key="student.id" class="border-b"><td class="py-3 font-bold">{{ student.name }}</td><td>{{ student.className }}</td><td>{{ student.trackCode }}</td></tr></tbody></table></div>
         <div v-if="activeMenu === 'Unterricht'" class="grid gap-3 md:grid-cols-3"><div v-for="subject in subjects" :key="subject.id" class="rounded border bg-white p-4"><p class="font-bold">{{ subject.name }}</p><p class="text-xs text-slate-500">{{ subject.shortName }}</p></div></div>
