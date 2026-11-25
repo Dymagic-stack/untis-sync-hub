@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 const mode = ref('webuntis')
 const api = '/api/sync-hub'
@@ -46,7 +46,11 @@ async function loadData() {
   }
 }
 
-onMounted(loadData)
+onMounted(async () => {
+  await loadData()
+  await loadSeating()
+  if (!Object.keys(seating.value).length) seating.value = initialSeatMap()
+})
 
 const visibleStudents = computed(() => {
   const needle = studentFilter.value.toLowerCase()
@@ -66,7 +70,13 @@ async function createAbsence(event) {
 
 async function createMoodleAbsence(event) {
   const form = new FormData(event.currentTarget)
-  const payload = { student_name: form.get('student_name'), class_name: form.get('class_name'), date: form.get('date'), reason: form.get('reason'), status: 'UNCONFIRMED' }
+  const payload = {
+    student_name: form.get('student_name'),
+    class_name: form.get('class_name'),
+    date: form.get('date'),
+    reason: form.get('reason'),
+    status: form.get('status'),
+  }
   const response = await fetch(`${api}/moodle/absences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
   if (response.ok) { moodleOpen.value = false; await loadData(); notice.value = 'Moodle-Fehlzeit gespeichert.' }
 }
@@ -89,6 +99,79 @@ async function deleteAbsence(absence) {
     await loadData()
   }
 }
+
+const seatingClass = ref('FIA25A')
+const seating = ref({})
+const draggedStudentId = ref('')
+const selectedSeatAbsence = ref(null)
+
+async function loadSeating() {
+  const response = await fetch(`/api/sync-hub/seating/${encodeURIComponent(seatingClass.value)}`)
+  if (response.ok) seating.value = (await response.json()).seats || {}
+}
+
+const seatingStudents = computed(() => students.value.filter(student => student.className === seatingClass.value))
+
+function studentById(id) {
+  return students.value.find(student => student.id === id)
+}
+
+function initialSeatMap() {
+  const map = {}
+  seatingStudents.value.forEach((student, index) => { map[`seat-${index + 1}`] = student.id })
+  return map
+}
+
+async function saveSeating() {
+  await fetch(`/api/sync-hub/seating/${encodeURIComponent(seatingClass.value)}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seats: seating.value }),
+  })
+  notice.value = 'Sitzplan gespeichert.'
+}
+
+function dragStudent(event, studentId) {
+  draggedStudentId.value = studentId
+  event.dataTransfer.effectAllowed = 'move'
+}
+
+function dropStudent(event, seatNumber) {
+  event.preventDefault()
+  if (!draggedStudentId.value) return
+  const targetSeat = `seat-${seatNumber}`
+  const occupant = seating.value[targetSeat]
+  const sourceSeat = Object.keys(seating.value).find(seat => seating.value[seat] === draggedStudentId.value)
+  const next = { ...seating.value }
+  if (occupant) {
+    if (sourceSeat) next[sourceSeat] = occupant
+  } else if (sourceSeat) {
+    delete next[sourceSeat]
+  }
+  next[targetSeat] = draggedStudentId.value
+  seating.value = next
+  draggedStudentId.value = ''
+}
+
+function studentHasAbsence(studentName) {
+  return moodleAbsences.value.find(absence => absence.student_name === studentName)
+}
+
+async function uploadStudentPhoto(event, studentId) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = async () => {
+    await fetch(`/api/sync-hub/students/${encodeURIComponent(studentId)}/photo`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoUrl: reader.result }),
+    })
+    await loadData()
+  }
+  reader.readAsDataURL(file)
+}
+
+watch(seatingClass, async () => {
+  await loadSeating()
+  if (!Object.keys(seating.value).length) seating.value = initialSeatMap()
+})
 </script>
 
 <template>
@@ -118,10 +201,65 @@ async function deleteAbsence(absence) {
     </main>
 
     <main v-else-if="mode === 'moodle'" class="min-h-screen bg-[#f2f4f7]">
-      <header class="h-16 border-b bg-white"><div class="mx-auto flex h-full max-w-7xl items-center justify-between px-6"><div class="flex items-center gap-8"><div class="text-xl font-black text-[#004b87]">ATIW Moodle</div><nav class="flex gap-6 text-sm"><span>Startseite</span><span class="border-b-2 border-sky-500 pb-5 pt-5">Meine Kurse</span></nav></div><div class="flex gap-3"><button @click="mode = 'sync'" class="rounded border px-3 py-2">Zum Sync-Hub</button><button @click="mode = 'webuntis'" class="rounded border px-3 py-2">Zu WebUntis</button></div></div></header>
-      <div class="mx-auto max-w-7xl px-10 py-12"><p class="text-sm text-sky-600">Kurse / FST-Klassen</p><h1 class="mt-2 text-3xl font-bold">FST-Klassen</h1><nav class="mt-8 flex gap-8 border-b text-sm"><span class="border-b-2 border-sky-500 pb-3 text-sky-700">Kursbereich</span><span class="pb-3 text-slate-500">Mehr</span></nav>
-        <div class="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]"><section><h2 class="mb-4 text-lg font-bold">Stundenplan</h2><div class="overflow-auto rounded-xl border bg-white"><div class="grid grid-cols-[70px_repeat(5,minmax(130px,1fr))]"><div></div><div v-for="day in days" :key="day" class="border-b border-r px-2 py-3 text-center text-xs font-bold">{{ day }}</div><template v-for="time in ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00']" :key="time"><div class="border-b border-r py-12 pr-2 text-right text-xs text-slate-400">{{ time }}</div><div v-for="dayIndex in 5" :key="dayIndex" class="min-h-24 border-b border-r p-1"><div v-if="lessonForDay(dayIndex - 1)" class="h-full rounded-md border-l-4 border-sky-500 bg-sky-50 p-2 text-xs"><p class="font-bold">{{ lessonForDay(dayIndex - 1).subject?.name }}</p><p>{{ lessonForDay(dayIndex - 1).classGroup?.name }}</p><button @click="moodleOpen = true" class="mt-2 text-xs font-bold text-sky-700">Fehlzeit erfassen</button></div></div></template></div></div></section>
-          <aside><div class="rounded-xl border bg-white p-5"><h2 class="mb-3 font-bold">Eigene Moodle-Fehlzeiten</h2><div v-for="absence in moodleAbsences" :key="absence.id" class="mb-2 rounded border p-3 text-sm"><p class="font-bold">{{ absence.student_name }}</p><p class="text-slate-500">{{ absence.class_name }} · {{ absence.date }}</p><p class="text-xs text-orange-700">{{ absence.reason }}</p><span class="ml-2 rounded bg-orange-100 px-2 py-1 text-xs">{{ absence.status }}</span></div><p v-if="!moodleAbsences.length" class="text-sm text-slate-400">Noch keine Fehlzeiten erfasst.</p></div></aside></div>
+      <header class="h-16 border-b bg-white">
+        <div class="mx-auto flex h-full max-w-[1500px] items-center justify-between px-8">
+          <div class="flex items-center gap-8">
+            <div class="text-xl font-black text-[#004b87]">ATIW Moodle</div>
+            <nav class="flex gap-6 text-sm"><span>Dashboard</span><span>Meine Kurse</span><span class="border-b-2 border-sky-500 pb-5 pt-5 font-bold text-sky-800">Kursbereich</span><span>Teilnehmer</span><span class="text-slate-400">Bewertungen</span></nav>
+          </div>
+          <div class="flex gap-2"><button @click="mode = 'sync'" class="rounded border px-3 py-2 text-sm">Zum Sync-Hub</button><button @click="mode = 'webuntis'" class="rounded border px-3 py-2 text-sm">Zu WebUntis</button></div>
+        </div>
+      </header>
+
+      <div class="mx-auto max-w-[1500px] px-8 py-7">
+        <div class="mb-5 flex items-end justify-between">
+          <div><p class="text-sm text-sky-700">Meine Kurse / FIA25A</p><h1 class="mt-1 text-3xl font-bold">Klassenübersicht – Sitzplan</h1></div>
+          <div class="flex gap-2"><button class="cursor-not-allowed rounded border bg-slate-100 px-4 py-2 text-sm text-slate-400" disabled>Anwesenheit</button><button class="cursor-not-allowed rounded border bg-slate-100 px-4 py-2 text-sm text-slate-400" disabled>Bewertungen</button><button class="cursor-not-allowed rounded border bg-slate-100 px-4 py-2 text-sm text-slate-400" disabled>Gruppen</button></div>
+        </div>
+
+        <nav class="mb-5 flex gap-7 border-b text-sm"><button class="border-b-2 border-sky-600 pb-3 font-bold text-sky-800">Sitzplan</button><button class="cursor-not-allowed pb-3 text-slate-400" disabled>Teilnehmerliste</button><button class="cursor-not-allowed pb-3 text-slate-400" disabled>Aktivitäten</button><button class="cursor-not-allowed pb-3 text-slate-400" disabled>Kursnotizen</button></nav>
+
+        <div class="grid gap-5 xl:grid-cols-[220px_minmax(620px,1fr)_340px]">
+          <aside class="rounded-xl border bg-white p-4">
+            <label class="mb-2 block text-xs font-bold uppercase text-slate-500">Klasse filtern</label>
+            <select v-model="seatingClass" class="w-full rounded border px-3 py-2 text-sm"><option v-for="schoolClass in classes" :key="schoolClass.id" :value="schoolClass.name">{{ schoolClass.name }}</option></select>
+            <h2 class="mb-3 mt-5 font-bold">Schüler ({{ seatingStudents.length }})</h2>
+            <div class="max-h-[590px] space-y-2 overflow-y-auto pr-1">
+              <div v-for="student in seatingStudents" :key="student.id" draggable="true" @dragstart="dragStudent($event, student.id)" :class="['flex cursor-grab items-center gap-2 rounded-lg border p-2', studentHasAbsence(student.name) ? 'opacity-45 grayscale' : 'bg-white']">
+                <img v-if="student.photoUrl" :src="student.photoUrl" class="h-9 w-9 rounded-full object-cover" alt=""/><div v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">{{ student.name.split(' ').map(n => n[0]).join('') }}</div>
+                <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">{{ student.name }}</p><p class="text-xs text-slate-500">{{ student.className }}</p></div>
+                <label title="Foto hochladen" class="cursor-pointer text-slate-400 hover:text-sky-700"><input type="file" accept="image/*" class="hidden" @change="uploadStudentPhoto($event, student.id)"/><span>●</span></label>
+              </div>
+            </div>
+          </aside>
+
+          <section class="rounded-xl border bg-white p-5">
+            <div class="mb-4 flex items-center justify-between"><div><h2 class="text-lg font-bold">Sitzplan {{ seatingClass }}</h2><p class="text-xs text-slate-500">Ziehe Schüler auf einen Platz. Der Sitzplan wird gespeichert.</p></div><button @click="saveSeating" class="rounded bg-sky-600 px-4 py-2 text-sm font-bold text-white">Sitzplan speichern</button></div>
+            <div class="mb-3 h-8 rounded bg-slate-100 text-center text-xs font-bold leading-8 text-slate-400">TAFEL / LEHRERANSICHT</div>
+            <div class="grid grid-cols-4 gap-3">
+              <div v-for="seatNumber in 20" :key="seatNumber" @dragover.prevent @drop="dropStudent($event, seatNumber)" :class="['relative flex min-h-24 items-center justify-center rounded-lg border-2 border-dashed p-2', seating[`seat-${seatNumber}`] ? 'border-sky-200 bg-sky-50/40' : 'border-slate-200 bg-slate-50']">
+                <template v-if="studentById(seating[`seat-${seatNumber}`])">
+                  <div :class="['relative flex w-full flex-col items-center text-center', studentHasAbsence(studentById(seating[`seat-${seatNumber}`]).name) ? 'opacity-40 grayscale' : '']">
+                    <img v-if="studentById(seating[`seat-${seatNumber}`]).photoUrl" :src="studentById(seating[`seat-${seatNumber}`]).photoUrl" class="h-12 w-12 rounded-full object-cover shadow" alt=""/><div v-else class="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-700">{{ studentById(seating[`seat-${seatNumber}`]).name.split(' ').map(n => n[0]).join('') }}</div>
+                    <p class="mt-2 text-xs font-bold">{{ studentById(seating[`seat-${seatNumber}`]).name }}</p>
+                    <span v-if="studentHasAbsence(studentById(seating[`seat-${seatNumber}`]).name)" class="mt-1 rounded bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">Fehlt</span>
+                    <button v-else @click="moodleOpen = true" class="mt-1 text-[10px] font-bold text-sky-700">Fehlzeit erfassen</button>
+                  </div>
+                </template>
+                <span v-else class="text-xs text-slate-300">Platz {{ seatNumber }}</span>
+              </div>
+            </div>
+          </section>
+
+          <aside class="rounded-xl border bg-white p-4">
+            <div class="mb-4 flex items-center justify-between"><h2 class="font-bold">Fehlzeiten</h2><button @click="moodleOpen = true" class="rounded bg-sky-600 px-3 py-2 text-sm font-bold text-white">Eintragen</button></div>
+            <div class="mb-3 grid grid-cols-2 gap-2"><input type="date" class="rounded border px-2 py-2 text-xs" value="2026-11-25"/><select class="rounded border px-2 py-2 text-xs"><option>Alle Status</option><option>Nicht bestätigt</option><option>Bestätigt</option><option>Entschuldigt</option></select></div>
+            <div class="max-h-[540px] space-y-2 overflow-y-auto">
+              <div v-for="absence in moodleAbsences.filter(item => item.class_name === seatingClass)" :key="absence.id" class="rounded-lg border p-3"><div class="flex items-start justify-between"><div><p class="text-sm font-bold">{{ absence.student_name }}</p><p class="mt-1 text-xs text-slate-500">{{ absence.date }} · {{ absence.reason }}</p></div><span :class="['rounded px-2 py-1 text-[10px] font-bold', absence.status === 'EXCUSED' ? 'bg-emerald-100 text-emerald-700' : absence.status === 'CONFIRMED' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700']">{{ absence.status }}</span></div></div>
+              <p v-if="!moodleAbsences.some(item => item.class_name === seatingClass)" class="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Keine Fehlzeiten für {{ seatingClass }}.</p>
+            </div>
+          </aside>
+        </div>
       </div>
     </main>
 
@@ -140,6 +278,16 @@ async function deleteAbsence(absence) {
 
     <div v-if="absenceOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><form @submit.prevent="createAbsence" class="w-full max-w-lg space-y-3 rounded bg-white p-5"><h2 class="font-bold">Neue Fehlzeit</h2><input name="studentName" required class="w-full rounded border px-3 py-2" placeholder="Schülername"/><input name="className" required class="w-full rounded border px-3 py-2" placeholder="Klasse"/><input name="date" type="date" value="2026-11-23" class="w-full rounded border px-3 py-2"/><input name="reason" required class="w-full rounded border px-3 py-2" placeholder="Grund"/><input name="status" type="hidden" value="UNCONFIRMED"/><button class="rounded bg-orange-600 px-4 py-2 text-white">Speichern</button></form></div>
     <div v-if="lessonOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><form @submit.prevent="createLesson" class="w-full max-w-lg space-y-3 rounded bg-white p-5"><h2 class="font-bold">Neue Stunde</h2><select name="subjectId" class="w-full rounded border px-3 py-2"><option v-for="subject in subjects" :key="subject.id" :value="subject.id">{{ subject.name }}</option></select><select name="classGroupId" class="w-full rounded border px-3 py-2"><option v-for="schoolClass in classes" :key="schoolClass.id" :value="schoolClass.id">{{ schoolClass.name }}</option></select><select name="roomId" class="w-full rounded border px-3 py-2"><option v-for="room in rooms" :key="room.id" :value="room.id">{{ room.name }}</option></select><select name="timeSlotId" class="w-full rounded border px-3 py-2"><option value="ts_monday_1">Montag 08:00</option></select><input name="teacherId" type="hidden" value="user_teacher_1"/><button class="rounded bg-orange-600 px-4 py-2 text-white">Speichern</button></form></div>
-    <div v-if="moodleOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><form @submit.prevent="createMoodleAbsence" class="w-full max-w-lg space-y-3 rounded bg-white p-5"><h2 class="font-bold">Fehlzeit in Moodle erfassen</h2><input name="student_name" required class="w-full rounded border px-3 py-2" placeholder="Schülername"/><input name="class_name" required class="w-full rounded border px-3 py-2" placeholder="Klasse"/><input name="date" type="date" value="2026-11-23" class="w-full rounded border px-3 py-2"/><input name="reason" required class="w-full rounded border px-3 py-2" placeholder="Grund"/><button class="rounded bg-sky-600 px-4 py-2 text-white">Speichern</button></form></div>
+    <div v-if="moodleOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <form @submit.prevent="createMoodleAbsence" class="w-full max-w-lg space-y-3 rounded-xl bg-white p-5 shadow-xl">
+        <h2 class="text-lg font-bold">Fehlzeit erfassen</h2>
+        <select name="class_name" v-model="seatingClass" required class="w-full rounded border px-3 py-2"><option v-for="schoolClass in classes" :key="schoolClass.id" :value="schoolClass.name">{{ schoolClass.name }}</option></select>
+        <select name="student_name" required class="w-full rounded border px-3 py-2"><option value="">Schüler auswählen</option><option v-for="student in seatingStudents" :key="student.id" :value="student.name">{{ student.name }}</option></select>
+        <input name="date" type="date" value="2026-11-25" required class="w-full rounded border px-3 py-2"/>
+        <input name="reason" required class="w-full rounded border px-3 py-2" placeholder="Grund: Krankheit, Termin, verspätet …"/>
+        <select name="status" class="w-full rounded border px-3 py-2"><option value="UNCONFIRMED">Nicht bestätigt</option><option value="CONFIRMED">Bestätigt</option><option value="EXCUSED">Entschuldigt</option></select>
+        <div class="flex justify-end gap-2 pt-2"><button type="button" @click="moodleOpen = false" class="rounded border px-4 py-2">Abbrechen</button><button class="rounded bg-sky-600 px-4 py-2 font-bold text-white">Speichern</button></div>
+      </form>
+    </div>
   </div>
 </template>

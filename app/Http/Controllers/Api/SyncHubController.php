@@ -317,4 +317,27 @@ class SyncHubController extends Controller
             'status_difference_count' => $statusDifferences->count(),
         ];
     }
+
+    public function seating(string $className): array
+    {
+        $response = Http::timeout(10)->get($this->mockUrl('/api/seating/' . urlencode($className)));
+        $response->throw();
+        return $response->json() ?? [];
+    }
+
+    public function updateSeating(Request $request, string $className): array
+    {
+        $validated = $request->validate(['seats' => ['required', 'array']]);
+        $response = Http::timeout(10)->put($this->mockUrl('/api/seating/' . urlencode($className)), $validated);
+        $response->throw();
+        return $response->json() ?? [];
+    }
+
+    public function updateStudentPhoto(Request $request, string $id): array
+    {
+        $validated = $request->validate(['photoUrl' => ['nullable', 'string', 'max:1000000']]);
+        $response = Http::timeout(10)->put($this->mockUrl('/api/students/' . urlencode($id) . '/photo'), $validated);
+        $response->throw();
+        return $response->json() ?? [];
+    }
 }

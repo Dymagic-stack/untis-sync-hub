@@ -24,4 +24,7 @@ Route::prefix('sync-hub')->controller(SyncHubController::class)->group(function 
     Route::get('moodle/absences', 'moodleAbsences');
     Route::post('moodle/absences', 'createMoodleAbsence');
     Route::get('comparison', 'systemComparison');
+    Route::get('seating/{className}', 'seating');
+    Route::put('seating/{className}', 'updateSeating');
+    Route::put('students/{id}/photo', 'updateStudentPhoto');
 });
