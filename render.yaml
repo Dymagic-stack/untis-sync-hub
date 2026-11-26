@@ -34,6 +34,12 @@ services:
         value: ATIW Sync Hub
       - key: APP_FRONTEND_MODE
         value: sync
+      - key: SYNC_ADMIN_USERNAME
+        value: admin
+      - key: SYNC_ADMIN_PASSWORD_SALT
+        value: atiw-synchub-salt-v1
+      - key: SYNC_ADMIN_PASSWORD_HASH
+        value: 763b5e533dafa3bc4db758e407ba7acfe187bace83c71ef7f469ac0b272943e6
       - key: SYNC_HUB_URL
         fromService:
           type: web

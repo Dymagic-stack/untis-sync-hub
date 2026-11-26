@@ -34,8 +34,97 @@ const absenceOpen = ref(false)
 const lessonOpen = ref(false)
 const notice = ref('')
 const mobileMenuOpen = ref(false)
+const syncDrawerCollapsed = ref(false)
+const syncSection = ref('dashboard')
+const syncTokenKey = 'syncHubAdminToken'
+const syncLoginForm = ref({ username: '', password: '' })
+const syncLoginError = ref('')
+const syncAuthPending = ref(false)
+const syncAuthenticated = ref(mode.value !== 'sync')
 
 const days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag']
+
+const syncNavItems = [
+  { key: 'dashboard', label: 'Dashboard', icon: '◫' },
+  { key: 'deltas', label: 'Deltas', icon: '⇄' },
+  { key: 'logs', label: 'Sync-Logs', icon: '◷' },
+]
+
+function syncAuthHeaders() {
+  const token = sessionStorage.getItem(syncTokenKey)
+  if (!token) {
+    return {}
+  }
+  return { Authorization: `Bearer ${token}` }
+}
+
+async function checkSyncSession() {
+  if (mode.value !== 'sync') {
+    syncAuthenticated.value = true
+    return true
+  }
+
+  const token = sessionStorage.getItem(syncTokenKey)
+  if (!token) {
+    syncAuthenticated.value = false
+    return false
+  }
+
+  try {
+    const response = await fetch(`${api}/admin/me`, { headers: syncAuthHeaders() })
+    syncAuthenticated.value = response.ok
+    return response.ok
+  } catch {
+    syncAuthenticated.value = false
+    return false
+  }
+}
+
+async function loginSyncHub() {
+  syncAuthPending.value = true
+  syncLoginError.value = ''
+
+  try {
+    const response = await fetch(`${api}/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(syncLoginForm.value),
+    })
+
+    if (!response.ok) {
+      syncLoginError.value = 'Anmeldung fehlgeschlagen. Zugangsdaten prüfen.'
+      return
+    }
+
+    const payload = await response.json()
+    if (!payload?.token) {
+      syncLoginError.value = 'Login konnte nicht abgeschlossen werden.'
+      return
+    }
+
+    sessionStorage.setItem(syncTokenKey, payload.token)
+    syncAuthenticated.value = true
+    syncLoginForm.value.password = ''
+    await loadData()
+  } catch {
+    syncLoginError.value = 'Login derzeit nicht möglich.'
+  } finally {
+    syncAuthPending.value = false
+  }
+}
+
+async function logoutSyncHub() {
+  try {
+    await fetch(`${api}/admin/logout`, { method: 'POST', headers: syncAuthHeaders() })
+  } catch {
+    // no-op
+  }
+
+  sessionStorage.removeItem(syncTokenKey)
+  syncAuthenticated.value = false
+  syncSection.value = 'dashboard'
+  syncLoginForm.value.password = ''
+}
 
 async function loadData() {
   try {
@@ -62,7 +151,10 @@ async function loadData() {
 }
 
 onMounted(async () => {
-  await loadData()
+  const hasSyncAccess = await checkSyncSession()
+  if (mode.value !== 'sync' || hasSyncAccess) {
+    await loadData()
+  }
   await loadSeating()
   if (!Object.keys(seating.value).length) seating.value = initialSeatMap()
 })
@@ -272,7 +364,17 @@ const syncTableRows = computed(() => {
     targetMode: 'webuntis',
   }))
 
-  return [...webuntisOnly, ...moodleOnly, ...changed, ...matched].slice(0, 14)
+  return [...webuntisOnly, ...moodleOnly, ...changed, ...matched]
+})
+
+const visibleSyncRows = computed(() => {
+  if (syncSection.value === 'dashboard') {
+    return syncTableRows.value.slice(0, 14)
+  }
+  if (syncSection.value === 'deltas') {
+    return syncTableRows.value
+  }
+  return []
 })
 
 const openDeltaCount = computed(() => {
@@ -349,94 +451,150 @@ function navigateToSwagger() {
 
 <template>
   <div class="min-h-screen bg-slate-100 text-slate-800">
-    <main v-if="mode === 'sync'" class="flex min-h-screen flex-col bg-[#F4F7FA] md:flex-row">
-      <aside class="w-full bg-[#0F1E36] px-4 py-5 text-slate-100 md:w-60 md:shrink-0">
-        <p class="mb-8 whitespace-nowrap text-xl font-bold tracking-tight">atiw-sync-hub</p>
-        <div class="space-y-2">
-          <button class="flex w-full items-center gap-3.5 rounded-lg bg-white/10 px-4 py-3 text-left text-[15px] font-medium">
-            <span class="text-xl">◫</span><span>Dashboard</span>
-          </button>
-          <button class="flex w-full items-center gap-3.5 rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90">
-            <span class="text-xl">⇄</span><span class="whitespace-nowrap">Deltas & Abgleich</span>
-          </button>
-          <button class="flex w-full items-center gap-3.5 rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90">
-            <span class="text-xl">◷</span><span>Sync-Logs</span>
-          </button>
-          <button @click="navigateToSwagger" class="flex w-full items-center gap-3.5 rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90">
-            <span class="text-xl">{⋯}</span><span class="whitespace-nowrap">Swagger API</span>
-          </button>
-          <button @click="navigateTo('webuntis')" class="flex w-full items-center gap-3.5 rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90">
-            <span class="text-xl">▭</span><span class="whitespace-nowrap">WebUntis Mock</span>
-          </button>
-        </div>
-      </aside>
+    <main v-if="mode === 'sync'" class="min-h-screen bg-[#F4F7FA]">
+      <div v-if="!syncAuthenticated" class="flex min-h-screen items-center justify-center p-6">
+        <form @submit.prevent="loginSyncHub" class="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 class="text-center text-2xl font-bold text-slate-900">Sync-Hub Login</h1>
+          <p class="text-center text-sm text-slate-500">Anmeldung mit Admin-Konto erforderlich.</p>
+          <input v-model="syncLoginForm.username" autocomplete="username" placeholder="Admin Benutzername" class="w-full rounded-lg border px-3 py-2.5 text-sm" />
+          <input v-model="syncLoginForm.password" type="password" autocomplete="current-password" placeholder="Passwort" class="w-full rounded-lg border px-3 py-2.5 text-sm" />
+          <p v-if="syncLoginError" class="rounded bg-red-50 px-3 py-2 text-xs text-red-700">{{ syncLoginError }}</p>
+          <button :disabled="syncAuthPending" class="w-full rounded-lg bg-[#3B669B] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2B507E] disabled:opacity-60">{{ syncAuthPending ? 'Prüfe...' : 'Anmelden' }}</button>
+        </form>
+      </div>
 
-      <section class="flex-1 border-l border-slate-200 bg-[#F4F7FA]">
-        <header class="flex h-16 items-center justify-end gap-4 border-b border-slate-200 bg-white px-8 py-3">
-          <div class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700">
-            <span class="h-2.5 w-2.5 rounded-full bg-emerald-600"></span>
-            <span>Verbunden (Render)</span>
+      <div v-else class="flex min-h-screen flex-col md:flex-row">
+        <aside :class="['bg-[#0F1E36] px-3 py-5 text-slate-100 transition-all duration-200', syncDrawerCollapsed ? 'md:w-20' : 'md:w-60', 'w-full md:shrink-0']">
+          <p :class="['mb-8 text-xl font-bold tracking-tight', syncDrawerCollapsed ? 'text-center' : 'whitespace-nowrap px-1']">{{ syncDrawerCollapsed ? 'ash' : 'atiw-sync-hub' }}</p>
+          <div class="space-y-2">
+            <button
+              v-for="item in syncNavItems"
+              :key="item.key"
+              @click="syncSection = item.key"
+              :class="[
+                'flex w-full items-center rounded-lg px-4 py-3 text-left text-[15px] font-medium transition',
+                syncDrawerCollapsed ? 'justify-center gap-0' : 'gap-3.5',
+                syncSection === item.key ? 'bg-white/10' : 'text-slate-200/90 hover:bg-white/5'
+              ]"
+            >
+              <span class="text-xl">{{ item.icon }}</span>
+              <span v-if="!syncDrawerCollapsed" class="whitespace-nowrap">{{ item.label }}</span>
+            </button>
+
+            <button @click="navigateToSwagger" :class="['flex w-full items-center rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90 hover:bg-white/5', syncDrawerCollapsed ? 'justify-center gap-0' : 'gap-3.5']">
+              <span class="text-xl">{⋯}</span>
+              <span v-if="!syncDrawerCollapsed" class="whitespace-nowrap">Swagger API</span>
+            </button>
+            <button @click="navigateTo('webuntis')" :class="['flex w-full items-center rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90 hover:bg-white/5', syncDrawerCollapsed ? 'justify-center gap-0' : 'gap-3.5']">
+              <span class="text-xl">▭</span>
+              <span v-if="!syncDrawerCollapsed" class="whitespace-nowrap">WebUntis Mock</span>
+            </button>
+            <button @click="navigateTo('moodle')" :class="['flex w-full items-center rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90 hover:bg-white/5', syncDrawerCollapsed ? 'justify-center gap-0' : 'gap-3.5']">
+              <span class="text-xl">▦</span>
+              <span v-if="!syncDrawerCollapsed" class="whitespace-nowrap">Moodle Mock</span>
+            </button>
+            <button @click="logoutSyncHub" :class="['mt-4 flex w-full items-center rounded-lg px-4 py-3 text-left text-[15px] font-medium text-red-200 hover:bg-red-500/10', syncDrawerCollapsed ? 'justify-center gap-0' : 'gap-3.5']">
+              <span class="text-xl">↩</span>
+              <span v-if="!syncDrawerCollapsed" class="whitespace-nowrap">Logout</span>
+            </button>
           </div>
-          <button @click="triggerSync" class="rounded-lg bg-[#3B669B] px-5 py-2 text-sm font-medium text-white hover:bg-[#2B507E]">Sync jetzt starten</button>
-        </header>
+        </aside>
 
-        <div class="p-8">
-          <h1 class="mb-6 text-2xl font-bold text-slate-900">Dashboard</h1>
-
-          <section class="grid gap-4 md:grid-cols-3">
-            <article class="rounded-xl border border-slate-200 bg-white p-6">
-              <p class="mb-2 text-sm font-medium text-slate-700">Offene Deltas</p>
-              <p class="text-3xl font-bold text-slate-900">{{ openDeltaCount }}</p>
-            </article>
-            <article class="rounded-xl border border-slate-200 bg-white p-6">
-              <p class="mb-2 text-sm font-medium text-slate-700">Synchronisiert</p>
-              <p class="text-3xl font-bold text-slate-900">{{ syncedCount }}</p>
-            </article>
-            <article class="rounded-xl border border-slate-200 bg-white p-6">
-              <p class="mb-2 text-sm font-medium text-slate-700">Letzter Abgleich</p>
-              <p class="text-3xl font-bold text-slate-900">{{ lastSyncLabel }}</p>
-            </article>
-          </section>
-
-          <section class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div class="border-b border-slate-200 px-6 py-4">
-              <h2 class="text-lg font-semibold text-slate-900">Erkannte Abweichungen (Deltas)</h2>
+        <section class="flex-1 border-l border-slate-200 bg-[#F4F7FA]">
+          <header class="flex h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white px-8 py-3">
+            <button @click="syncDrawerCollapsed = !syncDrawerCollapsed" class="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600">
+              {{ syncDrawerCollapsed ? 'Menü aufklappen' : 'Menü einklappen' }}
+            </button>
+            <div class="flex items-center gap-4">
+              <div class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700">
+                <span class="h-2.5 w-2.5 rounded-full bg-emerald-600"></span>
+                <span>Verbunden (Render)</span>
+              </div>
+              <button @click="triggerSync" class="rounded-lg bg-[#3B669B] px-5 py-2 text-sm font-medium text-white hover:bg-[#2B507E]">Sync jetzt starten</button>
             </div>
+          </header>
 
-            <div class="overflow-auto">
-              <table class="min-w-full text-left text-sm text-slate-800">
-                <thead class="border-b border-slate-200 bg-slate-50/50 text-xs font-semibold text-slate-700">
-                  <tr>
-                    <th class="px-6 py-3.5">Pseudonym-ID</th>
-                    <th class="px-6 py-3.5">Klasse</th>
-                    <th class="px-6 py-3.5">Zeitraum</th>
-                    <th class="px-6 py-3.5">Sync-Status</th>
-                    <th class="px-6 py-3.5">Zielplattform-Verweis</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in syncTableRows" :key="row.id" class="border-b border-slate-100 text-sm text-slate-800 last:border-0">
-                    <td class="px-6 py-4">{{ row.pseudo }}</td>
-                    <td class="px-6 py-4">{{ row.className }}</td>
-                    <td class="px-6 py-4">{{ row.period }}</td>
-                    <td class="px-6 py-4">
-                      <span :class="[
-                        'inline-flex min-w-[92px] justify-center rounded-full px-3.5 py-1 text-xs font-semibold text-white',
-                        row.status === 'Neu' ? 'bg-[#2EA067]' : row.status === 'Geändert' ? 'bg-[#D9822B]' : 'bg-[#4A8B6F]'
-                      ]">{{ row.status }}</span>
-                    </td>
-                    <td class="px-6 py-4">
-                      <button @click="navigateTo(row.targetMode)" class="inline-flex items-center gap-1.5 font-medium hover:text-blue-700">
-                        {{ row.targetText }} <span aria-hidden="true">→</span>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-      </section>
+          <div class="p-8">
+            <h1 class="mb-6 text-2xl font-bold text-slate-900">{{ syncSection === 'dashboard' ? 'Dashboard' : syncSection === 'deltas' ? 'Deltas' : 'Sync-Logs' }}</h1>
+
+            <section v-if="syncSection === 'dashboard'" class="grid gap-4 md:grid-cols-3">
+              <article class="rounded-xl border border-slate-200 bg-white p-6">
+                <p class="mb-2 text-sm font-medium text-slate-700">Offene Deltas</p>
+                <p class="text-3xl font-bold text-slate-900">{{ openDeltaCount }}</p>
+              </article>
+              <article class="rounded-xl border border-slate-200 bg-white p-6">
+                <p class="mb-2 text-sm font-medium text-slate-700">Synchronisiert</p>
+                <p class="text-3xl font-bold text-slate-900">{{ syncedCount }}</p>
+              </article>
+              <article class="rounded-xl border border-slate-200 bg-white p-6">
+                <p class="mb-2 text-sm font-medium text-slate-700">Letzter Abgleich</p>
+                <p class="text-3xl font-bold text-slate-900">{{ lastSyncLabel }}</p>
+              </article>
+            </section>
+
+            <section v-if="syncSection === 'dashboard' || syncSection === 'deltas'" class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div class="border-b border-slate-200 px-6 py-4">
+                <h2 class="text-lg font-semibold text-slate-900">Erkannte Abweichungen (Deltas)</h2>
+              </div>
+
+              <div class="overflow-auto">
+                <table class="min-w-full text-left text-sm text-slate-800">
+                  <thead class="border-b border-slate-200 bg-slate-50/50 text-xs font-semibold text-slate-700">
+                    <tr>
+                      <th class="px-6 py-3.5">Pseudonym-ID</th>
+                      <th class="px-6 py-3.5">Klasse</th>
+                      <th class="px-6 py-3.5">Zeitraum</th>
+                      <th class="px-6 py-3.5">Sync-Status</th>
+                      <th class="px-6 py-3.5">Zielplattform-Verweis</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in visibleSyncRows" :key="row.id" class="border-b border-slate-100 text-sm text-slate-800 last:border-0">
+                      <td class="px-6 py-4">{{ row.pseudo }}</td>
+                      <td class="px-6 py-4">{{ row.className }}</td>
+                      <td class="px-6 py-4">{{ row.period }}</td>
+                      <td class="px-6 py-4">
+                        <span :class="[
+                          'inline-flex min-w-[92px] justify-center rounded-full px-3.5 py-1 text-xs font-semibold text-white',
+                          row.status === 'Neu' ? 'bg-[#2EA067]' : row.status === 'Geändert' ? 'bg-[#D9822B]' : 'bg-[#4A8B6F]'
+                        ]">{{ row.status }}</span>
+                      </td>
+                      <td class="px-6 py-4">
+                        <button @click="navigateTo(row.targetMode)" class="inline-flex items-center gap-1.5 font-medium hover:text-blue-700">
+                          {{ row.targetText }} <span aria-hidden="true">→</span>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section v-if="syncSection === 'logs'" class="space-y-6">
+              <div class="rounded-xl border border-slate-200 bg-white p-5">
+                <h2 class="mb-3 text-lg font-semibold text-slate-900">Sync-Logs</h2>
+                <div class="max-h-[420px] space-y-2 overflow-auto">
+                  <div v-for="log in logs" :key="log.id" class="rounded-lg bg-slate-50 p-3 text-sm">
+                    <p class="font-semibold text-slate-800">{{ log.message }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ log.created_at }} · {{ log.source }} · {{ log.changes }} Änderungen</p>
+                  </div>
+                  <p v-if="!logs.length" class="text-sm text-slate-400">Keine Logs vorhanden.</p>
+                </div>
+              </div>
+
+              <div class="rounded-xl border border-slate-200 bg-white p-5">
+                <h2 class="mb-3 text-lg font-semibold text-slate-900">Änderungen</h2>
+                <div class="max-h-[420px] space-y-2 overflow-auto">
+                  <div v-for="change in changes" :key="change.id" class="rounded-lg bg-slate-50 p-3 text-sm">
+                    <p><span class="font-semibold">{{ change.entity_type }}</span> {{ change.entity_id }} - {{ change.change_type }}</p>
+                  </div>
+                  <p v-if="!changes.length" class="text-sm text-slate-400">Keine Änderungen vorhanden.</p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
     </main>
 
     <main v-else-if="mode === 'moodle'" class="min-h-screen bg-[#f2f4f7]">

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -22,6 +23,111 @@ class SyncHubController extends Controller
         $response = Http::timeout(10)->get($this->mockUrl($path), $query);
         $response->throw();
         return $response->json() ?? [];
+    }
+
+    private function adminUsername(): string
+    {
+        return (string) env('SYNC_ADMIN_USERNAME', 'admin');
+    }
+
+    private function adminPasswordSalt(): string
+    {
+        return (string) env('SYNC_ADMIN_PASSWORD_SALT', 'atiw-synchub-salt-v1');
+    }
+
+    private function adminPasswordHash(): string
+    {
+        return (string) env('SYNC_ADMIN_PASSWORD_HASH', '763b5e533dafa3bc4db758e407ba7acfe187bace83c71ef7f469ac0b272943e6');
+    }
+
+    private function hashAdminPassword(string $plain): string
+    {
+        return hash_hmac('sha256', $plain, $this->adminPasswordSalt());
+    }
+
+    private function createAdminToken(): array
+    {
+        $expires = now()->addHours(12)->timestamp;
+        $payload = $this->adminUsername() . '|' . $expires;
+        $signature = hash_hmac('sha256', $payload, (string) env('APP_KEY', 'sync-hub'));
+        $token = base64_encode($payload . '|' . $signature);
+
+        return [
+            'token' => $token,
+            'expires_at' => date(DATE_ATOM, $expires),
+        ];
+    }
+
+    private function readAdminToken(Request $request): string
+    {
+        return trim((string) $request->bearerToken());
+    }
+
+    private function isAdminTokenValid(string $token): bool
+    {
+        if ($token === '') {
+            return false;
+        }
+
+        $decoded = base64_decode($token, true);
+        if ($decoded === false) {
+            return false;
+        }
+
+        $parts = explode('|', $decoded);
+        if (count($parts) !== 3) {
+            return false;
+        }
+
+        [$username, $expiresAt, $signature] = $parts;
+        if ($username !== $this->adminUsername()) {
+            return false;
+        }
+
+        if (!ctype_digit($expiresAt) || (int) $expiresAt < time()) {
+            return false;
+        }
+
+        $expected = hash_hmac('sha256', $username . '|' . $expiresAt, (string) env('APP_KEY', 'sync-hub'));
+        return hash_equals($expected, $signature);
+    }
+
+    public function adminLogin(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'username' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8'],
+        ]);
+
+        $usernameOk = hash_equals($this->adminUsername(), (string) $validated['username']);
+        $passwordOk = hash_equals($this->adminPasswordHash(), $this->hashAdminPassword((string) $validated['password']));
+
+        if (!$usernameOk || !$passwordOk) {
+            return response()->json(['message' => 'Anmeldung fehlgeschlagen.'], 401);
+        }
+
+        return response()->json([
+            'authenticated' => true,
+            ...$this->createAdminToken(),
+        ]);
+    }
+
+    public function adminMe(Request $request): JsonResponse
+    {
+        $valid = $this->isAdminTokenValid($this->readAdminToken($request));
+        if (!$valid) {
+            return response()->json(['authenticated' => false], 401);
+        }
+
+        return response()->json([
+            'authenticated' => true,
+            'username' => $this->adminUsername(),
+        ]);
+    }
+
+    public function adminLogout(): JsonResponse
+    {
+        return response()->json(['status' => 'ok']);
     }
 
     public function dashboard(): array

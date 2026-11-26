@@ -4,6 +4,9 @@ use App\Http\Controllers\Api\SyncHubController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('sync-hub')->controller(SyncHubController::class)->group(function () {
+    Route::post('admin/login', 'adminLogin');
+    Route::get('admin/me', 'adminMe');
+    Route::post('admin/logout', 'adminLogout');
     Route::get('dashboard', 'dashboard');
     Route::get('timetable', 'timetable');
     Route::get('students', 'students');
