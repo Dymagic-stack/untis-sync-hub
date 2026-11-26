@@ -80,7 +80,7 @@ Deployment in Render (nur Browser):
 
 Dabei werden zwei Services erstellt:
 
-- `openuntis-mock` als private Docker-Service
+- `openuntis-mock` als öffentliche Docker-Web-App (Free-Plan-kompatibel)
 - `untis-sync-hub` als öffentliche Web-App
 
 Hinweis zum Free-Tier:

@@ -1,10 +1,11 @@
 services:
-  - type: pserv
+  - type: web
     name: openuntis-mock
     runtime: docker
     plan: free
     region: frankfurt
     dockerfilePath: ./openuntis-mock/Dockerfile
+    healthCheckPath: /
     envVars:
       - key: PORT
         value: 8000
