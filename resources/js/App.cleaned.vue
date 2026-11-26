@@ -329,9 +329,10 @@ const syncTableRows = computed(() => {
     pseudo: hashPseudoId(`${item.id || item.studentName || ''}-${item.className || ''}-${item.date || ''}-${index}`),
     className: item.className || 'n/a',
     period: formatGermanPeriod(item.date),
-    status: 'Neu',
+    status: 'Nur WebUntis',
     targetText: 'In Moodle nachtragen',
     targetMode: 'moodle',
+    scenario: 'webuntis_only',
   }))
 
   const moodleOnly = (comparison.value.only_in_moodle || []).map((item, index) => ({
@@ -339,9 +340,10 @@ const syncTableRows = computed(() => {
     pseudo: hashPseudoId(`${item.id || item.student_name || ''}-${item.class_name || ''}-${item.date || ''}-${index}`),
     className: item.class_name || 'n/a',
     period: formatGermanPeriod(item.date),
-    status: 'Neu',
+    status: 'Nur Moodle',
     targetText: 'In WebUntis prüfen',
     targetMode: 'webuntis',
+    scenario: 'moodle_only',
   }))
 
   const changed = (comparison.value.status_differences || []).map((item, index) => ({
@@ -349,12 +351,13 @@ const syncTableRows = computed(() => {
     pseudo: hashPseudoId(`${item.key || item.student_name || ''}-${item.date || ''}-${index}`),
     className: item.class_name || item.className || 'n/a',
     period: formatGermanPeriod(item.date),
-    status: 'Geändert',
+    status: 'Statusabweichung',
     targetText: 'In WebUntis prüfen',
     targetMode: 'webuntis',
+    scenario: 'status_diff',
   }))
 
-  const matched = (comparison.value.matching_records || []).slice(0, 8).map((item, index) => ({
+  const matched = (comparison.value.matching_records || []).map((item, index) => ({
     id: `ok-${index}-${item.key || item.student_name || item.date}`,
     pseudo: hashPseudoId(`${item.key || item.student_name || ''}-${item.date || ''}-${index}`),
     className: item.class_name || item.className || 'n/a',
@@ -362,14 +365,42 @@ const syncTableRows = computed(() => {
     status: 'Synchron',
     targetText: 'In WebUntis prüfen',
     targetMode: 'webuntis',
+    scenario: 'matching',
   }))
 
   return [...webuntisOnly, ...moodleOnly, ...changed, ...matched]
 })
 
+function interleaveRows(groups, limit) {
+  const result = []
+  let index = 0
+  while (result.length < limit) {
+    let pushed = false
+    for (const group of groups) {
+      if (group[index]) {
+        result.push(group[index])
+        pushed = true
+        if (result.length >= limit) {
+          break
+        }
+      }
+    }
+    if (!pushed) {
+      break
+    }
+    index += 1
+  }
+  return result
+}
+
 const visibleSyncRows = computed(() => {
   if (syncSection.value === 'dashboard') {
-    return syncTableRows.value.slice(0, 14)
+    return interleaveRows([
+      syncTableRows.value.filter(row => row.scenario === 'status_diff'),
+      syncTableRows.value.filter(row => row.scenario === 'webuntis_only'),
+      syncTableRows.value.filter(row => row.scenario === 'moodle_only'),
+      syncTableRows.value.filter(row => row.scenario === 'matching'),
+    ], 14)
   }
   if (syncSection.value === 'deltas') {
     return syncTableRows.value
@@ -555,8 +586,8 @@ function navigateToSwagger() {
                       <td class="px-6 py-4">{{ row.period }}</td>
                       <td class="px-6 py-4">
                         <span :class="[
-                          'inline-flex min-w-[92px] justify-center rounded-full px-3.5 py-1 text-xs font-semibold text-white',
-                          row.status === 'Neu' ? 'bg-[#2EA067]' : row.status === 'Geändert' ? 'bg-[#D9822B]' : 'bg-[#4A8B6F]'
+                            'inline-flex min-w-[132px] justify-center rounded-full px-3.5 py-1 text-xs font-semibold text-white',
+                            row.status === 'Nur WebUntis' ? 'bg-[#2EA067]' : row.status === 'Nur Moodle' ? 'bg-[#2D6EA0]' : row.status === 'Statusabweichung' ? 'bg-[#D9822B]' : 'bg-[#4A8B6F]'
                         ]">{{ row.status }}</span>
                       </td>
                       <td class="px-6 py-4">
