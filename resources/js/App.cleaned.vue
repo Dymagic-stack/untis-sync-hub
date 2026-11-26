@@ -2,6 +2,10 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 const mode = ref('webuntis')
+const isAuthenticated = ref(false)
+const role = ref('student')
+const loginForm = ref({ username: '', password: '', role: 'student' })
+const loginError = ref('')
 const api = '/api/sync-hub'
 const activeMenu = ref('Stundenplan')
 const dashboard = ref({ stats: {}, classes: [], absences: [] })
@@ -19,6 +23,7 @@ const moodleOpen = ref(false)
 const absenceOpen = ref(false)
 const lessonOpen = ref(false)
 const notice = ref('')
+const mobileMenuOpen = ref(false)
 
 const days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag']
 
@@ -187,6 +192,35 @@ const untisAbsences = computed(() => {
     return matchesClass && matchesStatus && matchesSearch
   })
 })
+
+const webuntisMenus = computed(() => {
+  if (role.value === 'teacher') {
+    return ['Stundenplan', 'Fehlzeiten', 'Klassen', 'Schüler', 'Unterricht', 'Logs', 'Vergleiche']
+  }
+  return ['Stundenplan', 'Fehlzeiten', 'Klassen', 'Schüler']
+})
+
+function login() {
+  const expectedPassword = loginForm.value.role === 'teacher' ? 'lehrer123' : 'schueler123'
+  if (!loginForm.value.username.trim()) {
+    loginError.value = 'Bitte Benutzername eingeben.'
+    return
+  }
+  if (loginForm.value.password !== expectedPassword) {
+    loginError.value = 'Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen.'
+    return
+  }
+
+  role.value = loginForm.value.role
+  isAuthenticated.value = true
+  loginError.value = ''
+  activeMenu.value = 'Stundenplan'
+}
+
+function logout() {
+  isAuthenticated.value = false
+  loginForm.value = { username: '', password: '', role: role.value }
+}
 </script>
 
 <template>
@@ -279,8 +313,37 @@ const untisAbsences = computed(() => {
     </main>
 
     <template v-else-if="mode === 'webuntis'">
-      <header class="flex h-16 items-center justify-between border-b bg-white px-5"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-600 font-black text-white">WU</div><div><p class="text-sm font-bold">Untis Demo Schule</p><p class="text-xs text-slate-500">WebUntis</p></div></div><div class="flex gap-2"><button @click="mode = 'sync'" class="rounded bg-sky-600 px-4 py-2 text-sm font-bold text-white">Zum Sync-Hub</button><button @click="mode = 'moodle'" class="rounded border px-4 py-2 text-sm font-bold">Zu Moodle</button></div></header>
-      <div class="flex min-h-[calc(100vh-64px)]"><aside class="w-56 border-r bg-white p-3"><button v-for="menu in ['Stundenplan','Fehlzeiten','Klassen','Schüler','Unterricht','Logs','Vergleiche']" :key="menu" @click="activeMenu = menu" :class="['mb-1 w-full rounded px-3 py-2 text-left', activeMenu === menu ? 'bg-orange-50 font-bold text-orange-700' : 'text-slate-600']">{{ menu }}</button></aside><main class="flex-1 p-5"><div class="mb-5 flex justify-between"><h1 class="text-2xl font-bold">{{ activeMenu }}</h1><button v-if="activeMenu === 'Fehlzeiten'" @click="absenceOpen = true" class="rounded bg-orange-600 px-3 py-2 text-sm font-bold text-white">Fehlzeit</button><button v-if="activeMenu === 'Stundenplan'" @click="lessonOpen = true" class="rounded bg-orange-600 px-3 py-2 text-sm font-bold text-white">Stunde</button></div>
+      <template v-if="!isAuthenticated">
+        <main class="grid min-h-screen md:grid-cols-2">
+          <section class="bg-slate-100 p-8 md:p-12">
+            <div class="mb-10 flex items-center gap-3">
+              <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-600 font-black text-white">un</div>
+              <div>
+                <p class="text-2xl font-black text-slate-700">ATIW gGmbH Paderborn</p>
+                <p class="text-sm text-slate-500">WebUntis Mock Login</p>
+              </div>
+            </div>
+            <p class="max-w-lg text-sm text-slate-500">Melde dich als Schülerin/Schüler oder Lehrkraft an. In der Lehrkraft-Rolle kannst du im Bereich Fehlzeiten neue Einträge erstellen.</p>
+          </section>
+          <section class="flex items-center justify-center bg-white p-6 md:p-10">
+            <form @submit.prevent="login" class="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 class="text-center text-2xl font-bold text-slate-700">Login</h2>
+              <select v-model="loginForm.role" class="w-full rounded-lg border px-3 py-3 text-sm">
+                <option value="student">Schüleransicht</option>
+                <option value="teacher">Lehreransicht</option>
+              </select>
+              <input v-model="loginForm.username" placeholder="Benutzername" class="w-full rounded-lg border px-3 py-3 text-sm" />
+              <input v-model="loginForm.password" type="password" placeholder="Passwort" class="w-full rounded-lg border px-3 py-3 text-sm" />
+              <p class="text-xs text-slate-500">Demo-Passwörter: Schüler = <b>schueler123</b>, Lehrer = <b>lehrer123</b></p>
+              <p v-if="loginError" class="rounded bg-red-50 px-3 py-2 text-xs text-red-700">{{ loginError }}</p>
+              <button class="w-full rounded-full bg-slate-700 px-4 py-3 text-sm font-bold text-white">Login</button>
+            </form>
+          </section>
+        </main>
+      </template>
+      <template v-else>
+      <header class="flex h-16 items-center justify-between border-b bg-white px-3 md:px-5"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-600 font-black text-white">WU</div><div><p class="text-sm font-bold">Untis Demo Schule</p><p class="text-xs text-slate-500">WebUntis · {{ role === 'teacher' ? 'Lehrkraft' : 'Schüler/in' }}</p></div></div><div class="flex items-center gap-2"><button @click="mobileMenuOpen = !mobileMenuOpen" class="rounded border px-3 py-2 text-xs font-bold md:hidden">Menü</button><button @click="mode = 'sync'" class="rounded bg-sky-600 px-3 py-2 text-xs font-bold text-white md:px-4 md:text-sm">Sync-Hub</button><button @click="mode = 'moodle'" class="hidden rounded border px-4 py-2 text-sm font-bold md:block">Moodle</button><button @click="logout" class="rounded border px-3 py-2 text-xs font-bold md:text-sm">Abmelden</button></div></header>
+      <div class="flex min-h-[calc(100vh-64px)] flex-col md:flex-row"><aside :class="['border-r bg-white p-3 md:w-56 md:shrink-0', mobileMenuOpen ? 'block' : 'hidden md:block']"><button v-for="menu in webuntisMenus" :key="menu" @click="activeMenu = menu; mobileMenuOpen = false" :class="['mb-1 w-full rounded px-3 py-2 text-left', activeMenu === menu ? 'bg-orange-50 font-bold text-orange-700' : 'text-slate-600']">{{ menu }}</button></aside><main class="flex-1 p-4 md:p-5"><div class="mb-5 flex items-center justify-between gap-2"><h1 class="text-xl font-bold md:text-2xl">{{ activeMenu }}</h1><div class="flex gap-2"><button v-if="activeMenu === 'Fehlzeiten' && role === 'teacher'" @click="absenceOpen = true" class="rounded bg-orange-600 px-3 py-2 text-xs font-bold text-white md:text-sm">Fehlzeit</button><button v-if="activeMenu === 'Stundenplan' && role === 'teacher'" @click="lessonOpen = true" class="rounded bg-orange-600 px-3 py-2 text-xs font-bold text-white md:text-sm">Stunde</button></div></div>
         <div v-if="activeMenu === 'Stundenplan'" class="overflow-auto rounded-xl border bg-white"><div class="grid grid-cols-[70px_repeat(5,minmax(140px,1fr))]"><div></div><div v-for="day in days" :key="day" class="border-b border-r px-2 py-3 text-center text-xs font-bold">{{ day }}</div><template v-for="time in ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00']" :key="time"><div class="border-b border-r py-12 pr-2 text-right text-xs text-slate-400">{{ time }}</div><div v-for="dayIndex in 5" :key="dayIndex" class="min-h-24 border-b border-r p-1"><div v-if="lessonForDay(dayIndex - 1)" class="h-full rounded border-l-4 border-orange-400 bg-orange-50 p-2 text-xs"><p class="font-bold">{{ lessonForDay(dayIndex - 1).subject?.name }}</p><p>{{ lessonForDay(dayIndex - 1).room?.name }}</p></div></div></template></div></div>
         <div v-if="activeMenu === 'Fehlzeiten'" class="overflow-hidden rounded-sm border border-slate-200 bg-white">
           <div class="flex h-12 items-end gap-8 border-b px-5 text-sm">
@@ -300,16 +363,16 @@ const untisAbsences = computed(() => {
 
           <div class="px-5 py-5">
             <table class="w-full border-collapse text-left text-xs">
-              <thead><tr class="h-10 border-b text-slate-500"><th class="w-12"></th><th class="w-28 font-normal">Von</th><th class="w-28 font-normal">Bis</th><th class="font-normal">Abwesenheitsgrund</th><th class="w-44 font-normal">Status</th><th class="w-40 font-normal">Text</th></tr></thead>
+              <thead><tr class="h-10 border-b text-slate-500"><th class="w-12"></th><th class="w-28 font-normal">Von</th><th class="w-28 font-normal">Bis</th><th class="font-normal">Abwesenheitsgrund</th><th class="w-44 font-normal">Status</th><th class="w-40 font-normal">Text</th><th v-if="role === 'teacher'" class="w-28 font-normal">Aktion</th></tr></thead>
               <tbody>
-                <tr v-for="absence in untisAbsences" :key="absence.id" class="h-16 border-b border-slate-100"><td><input type="checkbox" class="ml-1"/></td><td><div class="flex items-center gap-2"><span class="text-slate-400">◔</span><span>{{ absence.date }}<br/><span class="text-slate-400">09:55</span></span></div></td><td>{{ absence.date }}<br/><span class="text-slate-400">15:25</span></td><td><p class="font-medium text-slate-700">{{ absence.reason }}</p><p class="mt-1 text-slate-400">{{ absence.studentName }} · {{ absence.className }}</p></td><td><span :class="['rounded px-2 py-1 text-[10px] font-bold text-white', absence.status === 'EXCUSED' ? 'bg-emerald-500' : absence.status === 'CONFIRMED' ? 'bg-sky-500' : 'bg-amber-500']">{{ absence.status === 'EXCUSED' ? 'entschuldigt mit Attest/Fremdbeleg' : absence.status === 'CONFIRMED' ? 'bestätigt' : 'nicht bestätigt' }}</span></td><td class="text-slate-400">{{ absence.status === 'CONFIRMED' ? 'zur Beerdigung' : '—' }}</td></tr>
+                <tr v-for="absence in untisAbsences" :key="absence.id" class="h-16 border-b border-slate-100"><td><input type="checkbox" class="ml-1"/></td><td><div class="flex items-center gap-2"><span class="text-slate-400">◔</span><span>{{ absence.date }}<br/><span class="text-slate-400">09:55</span></span></div></td><td>{{ absence.date }}<br/><span class="text-slate-400">15:25</span></td><td><p class="font-medium text-slate-700">{{ absence.reason }}</p><p class="mt-1 text-slate-400">{{ absence.studentName }} · {{ absence.className }}</p></td><td><span :class="['rounded px-2 py-1 text-[10px] font-bold text-white', absence.status === 'EXCUSED' ? 'bg-emerald-500' : absence.status === 'CONFIRMED' ? 'bg-sky-500' : 'bg-amber-500']">{{ absence.status === 'EXCUSED' ? 'entschuldigt mit Attest/Fremdbeleg' : absence.status === 'CONFIRMED' ? 'bestätigt' : 'nicht bestätigt' }}</span></td><td class="text-slate-400">{{ absence.status === 'CONFIRMED' ? 'zur Beerdigung' : '—' }}</td><td v-if="role === 'teacher'"><button @click="deleteAbsence(absence)" class="rounded border border-red-200 px-2 py-1 text-[10px] font-bold text-red-600">Löschen</button></td></tr>
               </tbody>
             </table>
             <p v-if="!untisAbsences.length" class="py-12 text-center text-sm text-slate-400">Keine Abwesenheiten gefunden.</p>
             <div class="mt-2 border-t px-1 pt-3 text-xs text-slate-500">{{ untisAbsences.length }} Elemente</div>
           </div>
 
-          <div class="border-t px-5 py-4"><button @click="absenceOpen = true" class="rounded-full border px-5 py-2 text-sm text-slate-500">Entschuldigungsschreiben drucken →</button></div>
+          <div class="border-t px-5 py-4"><button v-if="role === 'teacher'" @click="absenceOpen = true" class="rounded-full border px-5 py-2 text-sm text-slate-500">Fehlzeit eintragen →</button><button v-else class="rounded-full border px-5 py-2 text-sm text-slate-500">Entschuldigungsschreiben drucken →</button></div>
         </div>
         <div v-if="activeMenu === 'Klassen'" class="grid gap-3 md:grid-cols-3"><div v-for="schoolClass in classes" :key="schoolClass.id" class="rounded border bg-white p-4"><p class="font-bold">{{ schoolClass.name }}</p><p class="text-xs text-slate-500">{{ schoolClass.track }}</p></div></div>
         <div v-if="activeMenu === 'Schüler'" class="rounded border bg-white p-5"><input v-model="studentFilter" class="mb-4 w-full rounded border px-3 py-2" placeholder="Schüler suchen"/><table class="w-full text-sm"><thead><tr><th>Schüler</th><th>Klasse</th><th>Richtung</th></tr></thead><tbody><tr v-for="student in visibleStudents" :key="student.id" class="border-b"><td class="py-3 font-bold">{{ student.name }}</td><td>{{ student.className }}</td><td>{{ student.trackCode }}</td></tr></tbody></table></div>
@@ -317,6 +380,7 @@ const untisAbsences = computed(() => {
         <div v-if="activeMenu === 'Logs'" class="rounded border bg-white p-5"><div v-for="log in logs" :key="log.id" class="mb-2 rounded bg-slate-50 p-3 text-sm">{{ log.created_at }} · {{ log.source }} · {{ log.message }}</div></div>
         <div v-if="activeMenu === 'Vergleiche'" class="rounded border bg-white p-5"><div v-for="change in changes" :key="change.id" class="mb-2 rounded bg-slate-50 p-3 text-sm">{{ change.entity_type }} {{ change.entity_id }} – {{ change.change_type }}</div></div>
       </main></div>
+      </template>
     </template>
 
     <div v-if="absenceOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><form @submit.prevent="createAbsence" class="w-full max-w-lg space-y-3 rounded bg-white p-5"><h2 class="font-bold">Neue Fehlzeit</h2><input name="studentName" required class="w-full rounded border px-3 py-2" placeholder="Schülername"/><input name="className" required class="w-full rounded border px-3 py-2" placeholder="Klasse"/><input name="date" type="date" value="2026-11-23" class="w-full rounded border px-3 py-2"/><input name="reason" required class="w-full rounded border px-3 py-2" placeholder="Grund"/><input name="status" type="hidden" value="UNCONFIRMED"/><button class="rounded bg-orange-600 px-4 py-2 text-white">Speichern</button></form></div>
