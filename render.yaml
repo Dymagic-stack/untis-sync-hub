@@ -41,7 +41,7 @@ services:
       - key: QUEUE_CONNECTION
         value: database
       - key: MOCK_API_URL
-        value: http://openuntis-mock:8000
+        value: https://openuntis-mock.onrender.com
 
   - type: web
     name: untis-sync-runner

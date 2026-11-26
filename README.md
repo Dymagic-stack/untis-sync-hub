@@ -88,6 +88,7 @@ Hinweis zum Free-Tier:
 
 - Render Free unterstützt keine Persistent Disks. SQLite-Daten sind daher nicht dauerhaft und können bei Redeploy/Neustart verloren gehen.
 - Bei Docker-Services in Unterordnern muss im Blueprint `dockerContext` gesetzt sein (z. B. `./openuntis-mock`, `./sync-runner`).
+- Der Hub sollte `MOCK_API_URL` auf die öffentliche Mock-URL setzen (`https://openuntis-mock.onrender.com`).
 
 Nach erfolgreichem Deploy ist die Anwendung über die Render-URL des Services `untis-sync-hub` erreichbar.
 
