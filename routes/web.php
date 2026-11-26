@@ -13,3 +13,5 @@ Route::get('/app', function () {
 Route::get('/api/sync-hub', function () {
     return redirect('/');
 });
+
+Route::view('/swagger', 'swagger');

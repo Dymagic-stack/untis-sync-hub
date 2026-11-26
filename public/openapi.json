@@ -1,0 +1,272 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ATIW Sync Hub API",
+    "version": "1.0.0",
+    "description": "API fuer Sync- und Mock-Operationen zwischen Hub, OpenUntis-Mock und Moodle-Daten." 
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current host"
+    }
+  ],
+  "tags": [
+    { "name": "Sync" },
+    { "name": "Absences" },
+    { "name": "Lessons" },
+    { "name": "Meta" }
+  ],
+  "paths": {
+    "/api/sync-hub/dashboard": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Dashboard-Statistiken lesen",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/sync-hub/students": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Schuelerliste lesen",
+        "parameters": [
+          {
+            "name": "classId",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "trackCode",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/sync-hub/timetable": {
+      "get": {
+        "tags": ["Lessons"],
+        "summary": "Stundenplan lesen",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/sync-hub/absences": {
+      "get": {
+        "tags": ["Absences"],
+        "summary": "Fehlzeiten lesen",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Absences"],
+        "summary": "Fehlzeit erstellen",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["studentName", "className", "reason"],
+                "properties": {
+                  "studentName": { "type": "string" },
+                  "className": { "type": "string" },
+                  "date": { "type": "string", "format": "date" },
+                  "reason": { "type": "string" },
+                  "status": {
+                    "type": "string",
+                    "enum": ["UNCONFIRMED", "CONFIRMED", "EXCUSED"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "201": { "description": "Created" },
+          "422": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/sync-hub/absences/{id}": {
+      "put": {
+        "tags": ["Absences"],
+        "summary": "Fehlzeit aktualisieren",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "delete": {
+        "tags": ["Absences"],
+        "summary": "Fehlzeit loeschen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/sync-hub/lessons": {
+      "post": {
+        "tags": ["Lessons"],
+        "summary": "Stunde erstellen",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["subjectId", "roomId", "classGroupId", "timeSlotId"],
+                "properties": {
+                  "subjectId": { "type": "string" },
+                  "teacherId": { "type": "string" },
+                  "roomId": { "type": "string" },
+                  "classGroupId": { "type": "string" },
+                  "timeSlotId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "201": { "description": "Created" },
+          "422": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/sync-hub/lessons/{id}": {
+      "put": {
+        "tags": ["Lessons"],
+        "summary": "Stunde aktualisieren",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "delete": {
+        "tags": ["Lessons"],
+        "summary": "Stunde loeschen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/sync-hub/sync": {
+      "post": {
+        "tags": ["Sync"],
+        "summary": "Sync-Lauf ausloesen",
+        "responses": {
+          "200": {
+            "description": "Sync abgeschlossen"
+          }
+        }
+      }
+    },
+    "/api/sync-hub/sync/status": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Letzten Sync-Status lesen",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/sync-hub/sync/logs": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Sync-Logs lesen",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/sync-hub/sync/changes": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Delta-Aenderungen lesen",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}

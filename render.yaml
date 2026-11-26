@@ -41,3 +41,19 @@ services:
         value: database
       - key: MOCK_API_URL
         value: http://openuntis-mock:8000
+
+  - type: web
+    name: untis-sync-runner
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./sync-runner/Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: SYNC_INTERVAL_MS
+        value: 300000
+      - key: HUB_SYNC_URL
+        fromService:
+          type: web
+          name: untis-sync-hub
+          envVarKey: RENDER_EXTERNAL_URL

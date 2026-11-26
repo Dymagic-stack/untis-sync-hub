@@ -82,9 +82,29 @@ Dabei werden zwei Services erstellt:
 
 - `openuntis-mock` als öffentliche Docker-Web-App (Free-Plan-kompatibel)
 - `untis-sync-hub` als öffentliche Web-App
+- `untis-sync-runner` als öffentliche Docker-Web-App, die den Sync-Endpunkt periodisch aufruft
 
 Hinweis zum Free-Tier:
 
 - Render Free unterstützt keine Persistent Disks. SQLite-Daten sind daher nicht dauerhaft und können bei Redeploy/Neustart verloren gehen.
 
 Nach erfolgreichem Deploy ist die Anwendung über die Render-URL des Services `untis-sync-hub` erreichbar.
+
+## Sync-Container in Render testen
+
+Der Service `untis-sync-runner` ruft automatisch alle 5 Minuten (`SYNC_INTERVAL_MS=300000`) den Endpunkt `/api/sync-hub/sync` von `untis-sync-hub` auf.
+
+Prüfen:
+
+1. In Render den Service `untis-sync-runner` öffnen.
+2. Logs kontrollieren: Es sollten regelmäßige `Sync POST ... -> 200` Einträge erscheinen.
+3. Optional `SYNC_INTERVAL_MS` reduzieren (z. B. `60000`) für schnellere Testzyklen.
+
+## Swagger API-Dokumentation
+
+Swagger-UI ist unter `/swagger` verfügbar und lädt die OpenAPI-Spezifikation aus `/openapi.json`.
+
+Beispiele:
+
+- Lokale Entwicklung: `http://localhost:8000/swagger`
+- Render: `https://<deine-app-domain>/swagger`

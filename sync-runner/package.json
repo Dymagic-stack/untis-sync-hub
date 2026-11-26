@@ -1,0 +1,11 @@
+{
+  "name": "atiw-sync-runner",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node sync-runner.cjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
