@@ -34,6 +34,8 @@ services:
         value: ATIW Sync Hub
       - key: APP_FRONTEND_MODE
         value: sync
+      - key: APP_LOGO_URL
+        value: ""
       - key: SYNC_ADMIN_USERNAME
         value: admin
       - key: SYNC_ADMIN_PASSWORD_SALT

@@ -10,6 +10,7 @@ const appUrls = {
   moodle: runtimeConfig.moodleUrl || '',
   webuntis: runtimeConfig.webuntisUrl || '',
 }
+const appLogoUrl = runtimeConfig.appLogoUrl || ''
 
 const mode = ref(initialMode)
 const isAuthenticated = ref(false)
@@ -495,8 +496,26 @@ function navigateToSwagger() {
       </div>
 
       <div v-else class="flex min-h-screen flex-col md:flex-row">
-        <aside :class="['bg-[#0F1E36] px-3 py-5 text-slate-100 transition-all duration-200', syncDrawerCollapsed ? 'md:w-20' : 'md:w-60', 'w-full md:shrink-0']">
-          <p :class="['mb-8 text-xl font-bold tracking-tight', syncDrawerCollapsed ? 'text-center' : 'whitespace-nowrap px-1']">{{ syncDrawerCollapsed ? 'ash' : 'atiw-sync-hub' }}</p>
+        <aside :class="['relative bg-[#0F1E36] px-3 py-5 text-slate-100 transition-all duration-200', syncDrawerCollapsed ? 'md:w-20' : 'md:w-60', 'w-full md:shrink-0']">
+          <button
+            @click="syncDrawerCollapsed = !syncDrawerCollapsed"
+            class="absolute -right-3 top-6 hidden h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-bold text-slate-700 shadow md:flex"
+            :aria-label="syncDrawerCollapsed ? 'Menü aufklappen' : 'Menü einklappen'"
+          >
+            {{ syncDrawerCollapsed ? '>' : '<' }}
+          </button>
+
+          <div :class="['mb-8 flex items-center', syncDrawerCollapsed ? 'justify-center' : 'gap-2 px-1']">
+            <img
+              v-if="appLogoUrl"
+              :src="appLogoUrl"
+              alt="ATIW Logo"
+              class="h-8 w-8 rounded-md bg-white/10 object-contain p-1"
+            />
+            <div v-else class="flex h-8 w-8 items-center justify-center rounded-md bg-white/15 text-xs font-bold">AT</div>
+            <p v-if="!syncDrawerCollapsed" class="whitespace-nowrap text-xl font-bold tracking-tight">atiw-sync-hub</p>
+          </div>
+
           <div class="space-y-2">
             <button
               v-for="item in syncNavItems"
@@ -533,9 +552,7 @@ function navigateToSwagger() {
 
         <section class="flex-1 border-l border-slate-200 bg-[#F4F7FA]">
           <header class="flex h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white px-8 py-3">
-            <button @click="syncDrawerCollapsed = !syncDrawerCollapsed" class="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600">
-              {{ syncDrawerCollapsed ? 'Menü aufklappen' : 'Menü einklappen' }}
-            </button>
+            <div></div>
             <div class="flex items-center gap-4">
               <div class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700">
                 <span class="h-2.5 w-2.5 rounded-full bg-emerald-600"></span>

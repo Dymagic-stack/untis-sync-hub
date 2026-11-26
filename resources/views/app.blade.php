@@ -10,6 +10,7 @@
             syncHubUrl: @json(env('SYNC_HUB_URL', url('/'))),
             webuntisUrl: @json(env('WEBUNTIS_URL', url('/'))),
             moodleUrl: @json(env('MOODLE_URL', url('/'))),
+            appLogoUrl: @json(env('APP_LOGO_URL', '')),
             apiBaseUrl: @json(rtrim(env('SYNC_HUB_URL', url('/')), '/') . '/api/sync-hub')
         };
     </script>
