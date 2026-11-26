@@ -49,9 +49,62 @@ const rooms = [
   { id: 'room-2', name: 'B204' },
 ]
 
-let absences = [
-  { id: 1, studentName: 'Leon Becker', className: 'FIA25A', date: '2026-11-24', reason: 'Krankheit', status: 'UNCONFIRMED' },
-]
+function pad2(value) {
+  return String(value).padStart(2, '0')
+}
+
+function buildDate(year, month, day) {
+  return `${year}-${pad2(month)}-${pad2(day)}`
+}
+
+function buildWebUntisDemoAbsences(sourceStudents) {
+  const statuses = ['UNCONFIRMED', 'CONFIRMED', 'EXCUSED']
+  const reasons = ['Krankheit', 'Arzttermin', 'ÖPNV-Ausfall', 'Familientermin', 'Prüfungsvorbereitung']
+  const rows = []
+
+  // 40 Datensaetze: in beiden Systemen, gleicher Status
+  for (let i = 0; i < 40; i++) {
+    const student = sourceStudents[i % sourceStudents.length]
+    rows.push({
+      id: rows.length + 1,
+      studentName: student.name,
+      className: student.className,
+      date: buildDate(2026, 11, (i % 28) + 1),
+      reason: reasons[i % reasons.length],
+      status: statuses[i % statuses.length],
+    })
+  }
+
+  // 25 Datensaetze: in beiden Systemen, aber mit Statusabweichung
+  for (let i = 0; i < 25; i++) {
+    const student = sourceStudents[(i + 7) % sourceStudents.length]
+    rows.push({
+      id: rows.length + 1,
+      studentName: student.name,
+      className: student.className,
+      date: buildDate(2026, 12, (i % 20) + 1),
+      reason: reasons[(i + 1) % reasons.length],
+      status: statuses[i % statuses.length],
+    })
+  }
+
+  // 20 Datensaetze: nur in WebUntis
+  for (let i = 0; i < 20; i++) {
+    const student = sourceStudents[(i + 13) % sourceStudents.length]
+    rows.push({
+      id: rows.length + 1,
+      studentName: student.name,
+      className: student.className,
+      date: buildDate(2026, 10, (i % 20) + 1),
+      reason: reasons[(i + 2) % reasons.length],
+      status: statuses[(i + 1) % statuses.length],
+    })
+  }
+
+  return rows
+}
+
+let absences = buildWebUntisDemoAbsences(students)
 
 let lessons = [
   { id: 'lesson-1', subjectId: 'subject-1', teacherId: 'teacher-1', roomId: 'room-1', classGroupId: 'class-1', timeSlotId: 'ts-monday-1', subject: subjects[0], room: rooms[0], classGroup: classes[0], timeSlot: { id: 'ts-monday-1', dayOfWeek: 'MONDAY', startTime: '08:00', endTime: '09:45' } },

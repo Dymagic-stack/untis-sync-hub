@@ -16,6 +16,8 @@ fi
 php-fpm -D
 
 php artisan migrate --force
+# Demo-Datensatz fuer Vergleiche (nur wenn weniger als 80 Moodle-Eintraege vorhanden sind).
+php artisan db:seed --class=DemoAbsenceSeeder --force || true
 php artisan storage:link --force >/dev/null 2>&1 || true
 # Cache-Warmup ist optional und darf den Start im Free-Tier nicht blockieren.
 php artisan config:cache || true
