@@ -344,7 +344,21 @@ function logout() {
       <template v-else>
       <header class="flex h-16 items-center justify-between border-b bg-white px-3 md:px-5"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-600 font-black text-white">WU</div><div><p class="text-sm font-bold">Untis Demo Schule</p><p class="text-xs text-slate-500">WebUntis · {{ role === 'teacher' ? 'Lehrkraft' : 'Schüler/in' }}</p></div></div><div class="flex items-center gap-2"><button @click="mobileMenuOpen = !mobileMenuOpen" class="rounded border px-3 py-2 text-xs font-bold md:hidden">Menü</button><button @click="mode = 'sync'" class="rounded bg-sky-600 px-3 py-2 text-xs font-bold text-white md:px-4 md:text-sm">Sync-Hub</button><button @click="mode = 'moodle'" class="hidden rounded border px-4 py-2 text-sm font-bold md:block">Moodle</button><button @click="logout" class="rounded border px-3 py-2 text-xs font-bold md:text-sm">Abmelden</button></div></header>
       <div class="flex min-h-[calc(100vh-64px)] flex-col md:flex-row"><aside :class="['border-r bg-white p-3 md:w-56 md:shrink-0', mobileMenuOpen ? 'block' : 'hidden md:block']"><button v-for="menu in webuntisMenus" :key="menu" @click="activeMenu = menu; mobileMenuOpen = false" :class="['mb-1 w-full rounded px-3 py-2 text-left', activeMenu === menu ? 'bg-orange-50 font-bold text-orange-700' : 'text-slate-600']">{{ menu }}</button></aside><main class="flex-1 p-4 md:p-5"><div class="mb-5 flex items-center justify-between gap-2"><h1 class="text-xl font-bold md:text-2xl">{{ activeMenu }}</h1><div class="flex gap-2"><button v-if="activeMenu === 'Fehlzeiten' && role === 'teacher'" @click="absenceOpen = true" class="rounded bg-orange-600 px-3 py-2 text-xs font-bold text-white md:text-sm">Fehlzeit</button><button v-if="activeMenu === 'Stundenplan' && role === 'teacher'" @click="lessonOpen = true" class="rounded bg-orange-600 px-3 py-2 text-xs font-bold text-white md:text-sm">Stunde</button></div></div>
-        <div v-if="activeMenu === 'Stundenplan'" class="overflow-auto rounded-xl border bg-white"><div class="grid grid-cols-[70px_repeat(5,minmax(140px,1fr))]"><div></div><div v-for="day in days" :key="day" class="border-b border-r px-2 py-3 text-center text-xs font-bold">{{ day }}</div><template v-for="time in ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00']" :key="time"><div class="border-b border-r py-12 pr-2 text-right text-xs text-slate-400">{{ time }}</div><div v-for="dayIndex in 5" :key="dayIndex" class="min-h-24 border-b border-r p-1"><div v-if="lessonForDay(dayIndex - 1)" class="h-full rounded border-l-4 border-orange-400 bg-orange-50 p-2 text-xs"><p class="font-bold">{{ lessonForDay(dayIndex - 1).subject?.name }}</p><p>{{ lessonForDay(dayIndex - 1).room?.name }}</p></div></div></template></div></div>
+        <div v-if="activeMenu === 'Stundenplan'" class="overflow-auto rounded-2xl bg-slate-100 p-3">
+          <div class="grid grid-cols-[60px_repeat(5,minmax(140px,1fr))] gap-2">
+            <div></div>
+            <div v-for="day in days" :key="day" class="px-2 py-2 text-center text-xs font-bold text-slate-500">{{ day }}</div>
+            <template v-for="time in ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00']" :key="time">
+              <div class="pt-10 pr-2 text-right text-[11px] text-slate-400">{{ time }}</div>
+              <div v-for="dayIndex in 5" :key="dayIndex" class="min-h-24 rounded-md bg-white/80 p-1 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.12)]">
+                <div v-if="lessonForDay(dayIndex - 1)" class="h-full rounded-md border-l-4 border-teal-300 bg-teal-50/80 p-2 text-xs text-slate-700">
+                  <p class="font-bold">{{ lessonForDay(dayIndex - 1).subject?.name }}</p>
+                  <p>{{ lessonForDay(dayIndex - 1).room?.name }}</p>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
         <div v-if="activeMenu === 'Fehlzeiten'" class="overflow-hidden rounded-sm border border-slate-200 bg-white">
           <div class="flex h-12 items-end gap-8 border-b px-5 text-sm">
             <button @click="untisAbsenceTab = 'Meine Abwesenheiten'" :class="['h-full px-1', untisAbsenceTab === 'Meine Abwesenheiten' ? 'border-b-2 border-red-400 font-medium text-red-500' : 'text-slate-400']">Meine Abwesenheiten</button>
@@ -383,9 +397,29 @@ function logout() {
       </template>
     </template>
 
-    <div v-if="absenceOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><form @submit.prevent="createAbsence" class="w-full max-w-lg space-y-3 rounded bg-white p-5"><h2 class="font-bold">Neue Fehlzeit</h2><input name="studentName" required class="w-full rounded border px-3 py-2" placeholder="Schülername"/><input name="className" required class="w-full rounded border px-3 py-2" placeholder="Klasse"/><input name="date" type="date" value="2026-11-23" class="w-full rounded border px-3 py-2"/><input name="reason" required class="w-full rounded border px-3 py-2" placeholder="Grund"/><input name="status" type="hidden" value="UNCONFIRMED"/><button class="rounded bg-orange-600 px-4 py-2 text-white">Speichern</button></form></div>
-    <div v-if="lessonOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><form @submit.prevent="createLesson" class="w-full max-w-lg space-y-3 rounded bg-white p-5"><h2 class="font-bold">Neue Stunde</h2><select name="subjectId" class="w-full rounded border px-3 py-2"><option v-for="subject in subjects" :key="subject.id" :value="subject.id">{{ subject.name }}</option></select><select name="classGroupId" class="w-full rounded border px-3 py-2"><option v-for="schoolClass in classes" :key="schoolClass.id" :value="schoolClass.id">{{ schoolClass.name }}</option></select><select name="roomId" class="w-full rounded border px-3 py-2"><option v-for="room in rooms" :key="room.id" :value="room.id">{{ room.name }}</option></select><select name="timeSlotId" class="w-full rounded border px-3 py-2"><option value="ts_monday_1">Montag 08:00</option></select><input name="teacherId" type="hidden" value="user_teacher_1"/><button class="rounded bg-orange-600 px-4 py-2 text-white">Speichern</button></form></div>
-    <div v-if="moodleOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <div v-if="absenceOpen" @click.self="absenceOpen = false" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <form @submit.prevent="createAbsence" class="w-full max-w-lg space-y-3 rounded-xl bg-white p-5 shadow-xl">
+        <div class="flex items-center justify-between"><h2 class="font-bold">Neue Fehlzeit</h2><button type="button" @click="absenceOpen = false" class="rounded border px-2 py-1 text-xs">✕</button></div>
+        <input name="studentName" required class="w-full rounded border px-3 py-2" placeholder="Schülername"/>
+        <input name="className" required class="w-full rounded border px-3 py-2" placeholder="Klasse"/>
+        <input name="date" type="date" value="2026-11-23" class="w-full rounded border px-3 py-2"/>
+        <input name="reason" required class="w-full rounded border px-3 py-2" placeholder="Grund"/>
+        <input name="status" type="hidden" value="UNCONFIRMED"/>
+        <div class="flex justify-end gap-2 pt-2"><button type="button" @click="absenceOpen = false" class="rounded border px-4 py-2">Abbrechen</button><button class="rounded bg-orange-600 px-4 py-2 text-white">Speichern</button></div>
+      </form>
+    </div>
+    <div v-if="lessonOpen" @click.self="lessonOpen = false" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <form @submit.prevent="createLesson" class="w-full max-w-lg space-y-3 rounded-xl bg-white p-5 shadow-xl">
+        <div class="flex items-center justify-between"><h2 class="font-bold">Neue Stunde</h2><button type="button" @click="lessonOpen = false" class="rounded border px-2 py-1 text-xs">✕</button></div>
+        <select name="subjectId" class="w-full rounded border px-3 py-2"><option v-for="subject in subjects" :key="subject.id" :value="subject.id">{{ subject.name }}</option></select>
+        <select name="classGroupId" class="w-full rounded border px-3 py-2"><option v-for="schoolClass in classes" :key="schoolClass.id" :value="schoolClass.id">{{ schoolClass.name }}</option></select>
+        <select name="roomId" class="w-full rounded border px-3 py-2"><option v-for="room in rooms" :key="room.id" :value="room.id">{{ room.name }}</option></select>
+        <select name="timeSlotId" class="w-full rounded border px-3 py-2"><option value="ts_monday_1">Montag 08:00</option></select>
+        <input name="teacherId" type="hidden" value="user_teacher_1"/>
+        <div class="flex justify-end gap-2 pt-2"><button type="button" @click="lessonOpen = false" class="rounded border px-4 py-2">Abbrechen</button><button class="rounded bg-orange-600 px-4 py-2 text-white">Speichern</button></div>
+      </form>
+    </div>
+    <div v-if="moodleOpen" @click.self="moodleOpen = false" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
       <form @submit.prevent="createMoodleAbsence" class="w-full max-w-lg space-y-3 rounded-xl bg-white p-5 shadow-xl">
         <h2 class="text-lg font-bold">Fehlzeit erfassen</h2>
         <select name="class_name" v-model="seatingClass" required class="w-full rounded border px-3 py-2"><option v-for="schoolClass in classes" :key="schoolClass.id" :value="schoolClass.name">{{ schoolClass.name }}</option></select>
