@@ -37,6 +37,11 @@ class SyncHubController extends Controller
 
     private function adminPasswordHash(): string
     {
+        $plain = (string) env('SYNC_ADMIN_PASSWORD', '');
+        if ($plain !== '') {
+            return $this->hashAdminPassword($plain);
+        }
+
         return (string) env('SYNC_ADMIN_PASSWORD_HASH', '763b5e533dafa3bc4db758e407ba7acfe187bace83c71ef7f469ac0b272943e6');
     }
 
