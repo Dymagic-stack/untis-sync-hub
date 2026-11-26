@@ -198,11 +198,32 @@ function hashPseudoId(input) {
   return `${hex.slice(0, 4)}${hex.slice(4, 8)}-${hex.slice(0, 3)}ec`
 }
 
+function toGermanDate(value) {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    const isoMatch = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!isoMatch) return String(value)
+    return `${isoMatch[3]}.${isoMatch[2]}.${isoMatch[1]}`
+  }
+  return parsed.toLocaleDateString('de-DE')
+}
+
+function formatGermanPeriod(periodValue) {
+  if (!periodValue) return 'n/a'
+  const value = String(periodValue).trim()
+  const rangeMatch = value.match(/^(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})$/)
+  if (rangeMatch) {
+    return `${toGermanDate(rangeMatch[1])} - ${toGermanDate(rangeMatch[2])}`
+  }
+  return toGermanDate(value)
+}
+
 function relativeLastSync() {
   const stamp = logs.value?.[0]?.created_at
-  if (!stamp) return 'Unbekannt'
+  if (!stamp) return 'Vor wenigen Min.'
   const then = new Date(stamp).getTime()
-  if (Number.isNaN(then)) return 'Unbekannt'
+  if (Number.isNaN(then)) return 'Vor wenigen Min.'
   const diffMinutes = Math.max(1, Math.floor((Date.now() - then) / 60000))
   if (diffMinutes < 60) return `Vor ${diffMinutes} Min.`
   const hours = Math.floor(diffMinutes / 60)
@@ -215,7 +236,7 @@ const syncTableRows = computed(() => {
     id: `wu-${index}-${item.id || item.studentName || item.date}`,
     pseudo: hashPseudoId(`${item.id || item.studentName || ''}-${item.className || ''}-${item.date || ''}-${index}`),
     className: item.className || 'n/a',
-    period: item.date || 'n/a',
+    period: formatGermanPeriod(item.date),
     status: 'Neu',
     targetText: 'In Moodle nachtragen',
     targetMode: 'moodle',
@@ -225,7 +246,7 @@ const syncTableRows = computed(() => {
     id: `mo-${index}-${item.id || item.student_name || item.date}`,
     pseudo: hashPseudoId(`${item.id || item.student_name || ''}-${item.class_name || ''}-${item.date || ''}-${index}`),
     className: item.class_name || 'n/a',
-    period: item.date || 'n/a',
+    period: formatGermanPeriod(item.date),
     status: 'Neu',
     targetText: 'In WebUntis prüfen',
     targetMode: 'webuntis',
@@ -235,7 +256,7 @@ const syncTableRows = computed(() => {
     id: `st-${index}-${item.key || item.student_name || item.date}`,
     pseudo: hashPseudoId(`${item.key || item.student_name || ''}-${item.date || ''}-${index}`),
     className: item.class_name || item.className || 'n/a',
-    period: item.date || 'n/a',
+    period: formatGermanPeriod(item.date),
     status: 'Geändert',
     targetText: 'In WebUntis prüfen',
     targetMode: 'webuntis',
@@ -245,7 +266,7 @@ const syncTableRows = computed(() => {
     id: `ok-${index}-${item.key || item.student_name || item.date}`,
     pseudo: hashPseudoId(`${item.key || item.student_name || ''}-${item.date || ''}-${index}`),
     className: item.class_name || item.className || 'n/a',
-    period: item.date || 'n/a',
+    period: formatGermanPeriod(item.date),
     status: 'Synchron',
     targetText: 'In WebUntis prüfen',
     targetMode: 'webuntis',
@@ -328,84 +349,84 @@ function navigateToSwagger() {
 
 <template>
   <div class="min-h-screen bg-slate-100 text-slate-800">
-    <main v-if="mode === 'sync'" class="flex min-h-screen flex-col bg-[#f7f8fb] md:flex-row">
-      <aside class="w-full bg-[#0f1f3a] px-4 py-5 text-slate-100 md:w-[275px] md:shrink-0">
-        <p class="mb-6 text-[40px] font-semibold leading-none tracking-tight">atiw-sync-hub</p>
+    <main v-if="mode === 'sync'" class="flex min-h-screen flex-col bg-[#F4F7FA] md:flex-row">
+      <aside class="w-full bg-[#0F1E36] px-4 py-5 text-slate-100 md:w-60 md:shrink-0">
+        <p class="mb-8 whitespace-nowrap text-xl font-bold tracking-tight">atiw-sync-hub</p>
         <div class="space-y-2">
-          <button class="flex w-full items-center gap-3 rounded-xl bg-slate-600/30 px-4 py-3 text-left text-[34px] font-medium">
+          <button class="flex w-full items-center gap-3.5 rounded-lg bg-white/10 px-4 py-3 text-left text-[15px] font-medium">
             <span class="text-xl">◫</span><span>Dashboard</span>
           </button>
-          <button class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-[34px] font-medium text-slate-200/90">
-            <span class="text-xl">⇄</span><span>Deltas & Abgleich</span>
+          <button class="flex w-full items-center gap-3.5 rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90">
+            <span class="text-xl">⇄</span><span class="whitespace-nowrap">Deltas & Abgleich</span>
           </button>
-          <button class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-[34px] font-medium text-slate-200/90">
+          <button class="flex w-full items-center gap-3.5 rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90">
             <span class="text-xl">◷</span><span>Sync-Logs</span>
           </button>
-          <button @click="navigateToSwagger" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-[34px] font-medium text-slate-200/90">
-            <span class="text-xl">{⋯}</span><span>Swagger API</span>
+          <button @click="navigateToSwagger" class="flex w-full items-center gap-3.5 rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90">
+            <span class="text-xl">{⋯}</span><span class="whitespace-nowrap">Swagger API</span>
           </button>
-          <button @click="navigateTo('webuntis')" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-[34px] font-medium text-slate-200/90">
-            <span class="text-xl">▭</span><span>WebUntis Mock</span>
+          <button @click="navigateTo('webuntis')" class="flex w-full items-center gap-3.5 rounded-lg px-4 py-3 text-left text-[15px] font-medium text-slate-200/90">
+            <span class="text-xl">▭</span><span class="whitespace-nowrap">WebUntis Mock</span>
           </button>
         </div>
       </aside>
 
-      <section class="flex-1 border-l border-slate-200 bg-[#f7f8fb]">
-        <header class="flex items-center justify-end gap-4 border-b bg-white px-4 py-4 md:px-8">
-          <div class="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-1 text-[36px] text-emerald-800">
-            <span class="h-3 w-3 rounded-full bg-emerald-600"></span>
+      <section class="flex-1 border-l border-slate-200 bg-[#F4F7FA]">
+        <header class="flex h-16 items-center justify-end gap-4 border-b border-slate-200 bg-white px-8 py-3">
+          <div class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700">
+            <span class="h-2.5 w-2.5 rounded-full bg-emerald-600"></span>
             <span>Verbunden (Render)</span>
           </div>
-          <button @click="triggerSync" class="rounded-xl bg-[#4d6c93] px-5 py-3 text-[34px] font-medium text-white">Sync jetzt starten</button>
+          <button @click="triggerSync" class="rounded-lg bg-[#3B669B] px-5 py-2 text-sm font-medium text-white hover:bg-[#2B507E]">Sync jetzt starten</button>
         </header>
 
-        <div class="p-4 md:p-8">
-          <h1 class="mb-5 text-[56px] font-semibold tracking-tight text-slate-900">Dashboard</h1>
+        <div class="p-8">
+          <h1 class="mb-6 text-2xl font-bold text-slate-900">Dashboard</h1>
 
           <section class="grid gap-4 md:grid-cols-3">
-            <article class="rounded-2xl border border-slate-300 bg-white px-5 py-4 shadow-sm">
-              <p class="text-[40px] font-medium text-slate-900">Offene Deltas</p>
-              <p class="mt-1 text-[58px] font-semibold leading-none text-slate-900">{{ openDeltaCount }}</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-6">
+              <p class="mb-2 text-sm font-medium text-slate-700">Offene Deltas</p>
+              <p class="text-3xl font-bold text-slate-900">{{ openDeltaCount }}</p>
             </article>
-            <article class="rounded-2xl border border-slate-300 bg-white px-5 py-4 shadow-sm">
-              <p class="text-[40px] font-medium text-slate-900">Synchronisiert</p>
-              <p class="mt-1 text-[58px] font-semibold leading-none text-slate-900">{{ syncedCount }}</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-6">
+              <p class="mb-2 text-sm font-medium text-slate-700">Synchronisiert</p>
+              <p class="text-3xl font-bold text-slate-900">{{ syncedCount }}</p>
             </article>
-            <article class="rounded-2xl border border-slate-300 bg-white px-5 py-4 shadow-sm">
-              <p class="text-[40px] font-medium text-slate-900">Letzter Abgleich</p>
-              <p class="mt-1 text-[58px] font-semibold leading-none text-slate-900">{{ lastSyncLabel }}</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-6">
+              <p class="mb-2 text-sm font-medium text-slate-700">Letzter Abgleich</p>
+              <p class="text-3xl font-bold text-slate-900">{{ lastSyncLabel }}</p>
             </article>
           </section>
 
-          <section class="mt-5 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
-            <div class="border-b border-slate-300 px-5 py-4">
-              <h2 class="text-[48px] font-semibold text-slate-900">Erkannte Abweichungen (Deltas)</h2>
+          <section class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div class="border-b border-slate-200 px-6 py-4">
+              <h2 class="text-lg font-semibold text-slate-900">Erkannte Abweichungen (Deltas)</h2>
             </div>
 
             <div class="overflow-auto">
-              <table class="min-w-full text-left text-[40px] text-slate-900">
-                <thead class="bg-slate-50">
+              <table class="min-w-full text-left text-sm text-slate-800">
+                <thead class="border-b border-slate-200 bg-slate-50/50 text-xs font-semibold text-slate-700">
                   <tr>
-                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Pseudonym-ID</th>
-                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Klasse</th>
-                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Zeitraum</th>
-                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Sync-Status</th>
-                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Zielplattform-Verweis</th>
+                    <th class="px-6 py-3.5">Pseudonym-ID</th>
+                    <th class="px-6 py-3.5">Klasse</th>
+                    <th class="px-6 py-3.5">Zeitraum</th>
+                    <th class="px-6 py-3.5">Sync-Status</th>
+                    <th class="px-6 py-3.5">Zielplattform-Verweis</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="row in syncTableRows" :key="row.id" class="border-b border-slate-200 last:border-0">
-                    <td class="px-5 py-3">{{ row.pseudo }}</td>
-                    <td class="px-5 py-3">{{ row.className }}</td>
-                    <td class="px-5 py-3">{{ row.period }}</td>
-                    <td class="px-5 py-3">
+                  <tr v-for="row in syncTableRows" :key="row.id" class="border-b border-slate-100 text-sm text-slate-800 last:border-0">
+                    <td class="px-6 py-4">{{ row.pseudo }}</td>
+                    <td class="px-6 py-4">{{ row.className }}</td>
+                    <td class="px-6 py-4">{{ row.period }}</td>
+                    <td class="px-6 py-4">
                       <span :class="[
-                        'inline-flex rounded-full px-3 py-1 text-[34px] font-medium text-white',
-                        row.status === 'Neu' ? 'bg-emerald-500' : row.status === 'Geändert' ? 'bg-amber-500' : 'bg-slate-500'
+                        'inline-flex min-w-[92px] justify-center rounded-full px-3.5 py-1 text-xs font-semibold text-white',
+                        row.status === 'Neu' ? 'bg-[#2EA067]' : row.status === 'Geändert' ? 'bg-[#D9822B]' : 'bg-[#4A8B6F]'
                       ]">{{ row.status }}</span>
                     </td>
-                    <td class="px-5 py-3">
-                      <button @click="navigateTo(row.targetMode)" class="inline-flex items-center gap-2 hover:underline">
+                    <td class="px-6 py-4">
+                      <button @click="navigateTo(row.targetMode)" class="inline-flex items-center gap-1.5 font-medium hover:text-blue-700">
                         {{ row.targetText }} <span aria-hidden="true">→</span>
                       </button>
                     </td>
