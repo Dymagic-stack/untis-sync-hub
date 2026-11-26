@@ -188,6 +188,81 @@ watch(seatingClass, async () => {
   if (!Object.keys(seating.value).length) seating.value = initialSeatMap()
 })
 
+function hashPseudoId(input) {
+  let hash = 0
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) - hash) + input.charCodeAt(i)
+    hash |= 0
+  }
+  const hex = Math.abs(hash).toString(16).padStart(8, '0')
+  return `${hex.slice(0, 4)}${hex.slice(4, 8)}-${hex.slice(0, 3)}ec`
+}
+
+function relativeLastSync() {
+  const stamp = logs.value?.[0]?.created_at
+  if (!stamp) return 'Unbekannt'
+  const then = new Date(stamp).getTime()
+  if (Number.isNaN(then)) return 'Unbekannt'
+  const diffMinutes = Math.max(1, Math.floor((Date.now() - then) / 60000))
+  if (diffMinutes < 60) return `Vor ${diffMinutes} Min.`
+  const hours = Math.floor(diffMinutes / 60)
+  if (hours < 24) return `Vor ${hours} Std.`
+  return `Vor ${Math.floor(hours / 24)} Tag(en)`
+}
+
+const syncTableRows = computed(() => {
+  const webuntisOnly = (comparison.value.only_in_webuntis || []).map((item, index) => ({
+    id: `wu-${index}-${item.id || item.studentName || item.date}`,
+    pseudo: hashPseudoId(`${item.id || item.studentName || ''}-${item.className || ''}-${item.date || ''}-${index}`),
+    className: item.className || 'n/a',
+    period: item.date || 'n/a',
+    status: 'Neu',
+    targetText: 'In Moodle nachtragen',
+    targetMode: 'moodle',
+  }))
+
+  const moodleOnly = (comparison.value.only_in_moodle || []).map((item, index) => ({
+    id: `mo-${index}-${item.id || item.student_name || item.date}`,
+    pseudo: hashPseudoId(`${item.id || item.student_name || ''}-${item.class_name || ''}-${item.date || ''}-${index}`),
+    className: item.class_name || 'n/a',
+    period: item.date || 'n/a',
+    status: 'Neu',
+    targetText: 'In WebUntis prüfen',
+    targetMode: 'webuntis',
+  }))
+
+  const changed = (comparison.value.status_differences || []).map((item, index) => ({
+    id: `st-${index}-${item.key || item.student_name || item.date}`,
+    pseudo: hashPseudoId(`${item.key || item.student_name || ''}-${item.date || ''}-${index}`),
+    className: item.class_name || item.className || 'n/a',
+    period: item.date || 'n/a',
+    status: 'Geändert',
+    targetText: 'In WebUntis prüfen',
+    targetMode: 'webuntis',
+  }))
+
+  const matched = (comparison.value.matching_records || []).slice(0, 8).map((item, index) => ({
+    id: `ok-${index}-${item.key || item.student_name || item.date}`,
+    pseudo: hashPseudoId(`${item.key || item.student_name || ''}-${item.date || ''}-${index}`),
+    className: item.class_name || item.className || 'n/a',
+    period: item.date || 'n/a',
+    status: 'Synchron',
+    targetText: 'In WebUntis prüfen',
+    targetMode: 'webuntis',
+  }))
+
+  return [...webuntisOnly, ...moodleOnly, ...changed, ...matched].slice(0, 14)
+})
+
+const openDeltaCount = computed(() => {
+  return (comparison.value.only_in_webuntis?.length || 0)
+    + (comparison.value.only_in_moodle?.length || 0)
+    + (comparison.value.status_differences?.length || 0)
+})
+
+const syncedCount = computed(() => comparison.value.matching_count || 0)
+const lastSyncLabel = computed(() => relativeLastSync())
+
 const untisAbsenceTab = ref('Meine Abwesenheiten')
 const untisClassFilter = ref('Alle')
 const untisStatusFilter = ref('Alle')
@@ -240,31 +315,106 @@ function navigateTo(targetMode) {
   }
   mode.value = targetMode
 }
+
+function navigateToSwagger() {
+  const hubUrl = appUrls.sync || ''
+  if (hubUrl) {
+    window.location.assign(`${hubUrl.replace(/\/$/, '')}/swagger`)
+    return
+  }
+  window.location.assign('/swagger')
+}
 </script>
 
 <template>
   <div class="min-h-screen bg-slate-100 text-slate-800">
-    <header v-if="mode === 'sync'" class="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-white px-6">
-      <button @click="navigateTo('webuntis')" class="rounded border px-3 py-2">Zur WebUntis-Oberfläche</button>
-      <div class="flex gap-2"><button @click="navigateTo('moodle')" class="rounded border px-3 py-2">Zu Moodle</button><button @click="triggerSync" class="rounded bg-sky-600 px-4 py-2 font-bold text-white">Synchronisieren</button></div>
-    </header>
+    <main v-if="mode === 'sync'" class="flex min-h-screen flex-col bg-[#f7f8fb] md:flex-row">
+      <aside class="w-full bg-[#0f1f3a] px-4 py-5 text-slate-100 md:w-[275px] md:shrink-0">
+        <p class="mb-6 text-[40px] font-semibold leading-none tracking-tight">atiw-sync-hub</p>
+        <div class="space-y-2">
+          <button class="flex w-full items-center gap-3 rounded-xl bg-slate-600/30 px-4 py-3 text-left text-[34px] font-medium">
+            <span class="text-xl">◫</span><span>Dashboard</span>
+          </button>
+          <button class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-[34px] font-medium text-slate-200/90">
+            <span class="text-xl">⇄</span><span>Deltas & Abgleich</span>
+          </button>
+          <button class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-[34px] font-medium text-slate-200/90">
+            <span class="text-xl">◷</span><span>Sync-Logs</span>
+          </button>
+          <button @click="navigateToSwagger" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-[34px] font-medium text-slate-200/90">
+            <span class="text-xl">{⋯}</span><span>Swagger API</span>
+          </button>
+          <button @click="navigateTo('webuntis')" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-[34px] font-medium text-slate-200/90">
+            <span class="text-xl">▭</span><span>WebUntis Mock</span>
+          </button>
+        </div>
+      </aside>
 
-    <main v-if="mode === 'sync'" class="mx-auto max-w-6xl p-6">
-      <p class="text-sm font-bold uppercase tracking-wider text-sky-600">Sync-Hub</p><h1 class="mb-6 mt-1 text-3xl font-bold">Synchronisierte Daten</h1>
-      <section class="grid gap-4 md:grid-cols-4">
-        <div v-for="stat in [['Stunden', timetable.length], ['Klassen', classes.length], ['Schüler', students.length], ['Fehlzeiten', dashboard.absences?.length || 0]]" :key="stat[0]" class="rounded-xl border bg-white p-5"><p class="text-sm text-slate-500">{{ stat[0] }}</p><p class="mt-3 text-3xl font-bold">{{ stat[1] }}</p></div>
-      </section>
-      <section class="mt-6 grid gap-6 lg:grid-cols-2">
-        <details open class="rounded-xl border border-amber-200 bg-white p-5"><summary class="cursor-pointer list-none text-lg font-bold text-amber-800">Nur in WebUntis ({{ comparison.only_in_webuntis.length }})</summary><div class="mt-3 max-h-72 overflow-y-auto pr-2"><div v-for="item in comparison.only_in_webuntis" :key="item.id" class="mb-2 rounded-lg bg-amber-50 p-3"><p class="font-bold">{{ item.studentName }}</p><p class="text-sm text-slate-500">{{ item.className }} · {{ item.date }} · {{ item.status }}</p></div><p v-if="!comparison.only_in_webuntis.length" class="text-sm text-slate-400">Keine Abweichung</p></div></details>
-        <details open class="rounded-xl border border-orange-200 bg-white p-5"><summary class="cursor-pointer list-none text-lg font-bold text-orange-800">Nur in Moodle ({{ comparison.only_in_moodle.length }})</summary><div class="mt-3 max-h-72 overflow-y-auto pr-2"><div v-for="item in comparison.only_in_moodle" :key="item.id" class="mb-2 rounded-lg bg-orange-50 p-3"><p class="font-bold">{{ item.student_name }}</p><p class="text-sm text-slate-500">{{ item.class_name }} · {{ item.date }} · {{ item.status }}</p></div><p v-if="!comparison.only_in_moodle.length" class="text-sm text-slate-400">Keine Abweichung</p></div></details>
-      </section>
-      <section class="mt-6 grid gap-6 lg:grid-cols-2">
-        <details open class="rounded-xl border border-red-200 bg-white p-5"><summary class="cursor-pointer list-none text-lg font-bold text-red-800">Statusabweichungen ({{ comparison.status_difference_count }})</summary><div class="mt-3 max-h-72 overflow-y-auto pr-2"><div v-for="item in comparison.status_differences" :key="item.key" class="mb-3 rounded-lg bg-red-50 p-3 text-sm"><p class="font-bold">{{ item.student_name }} · {{ item.date }}</p><div class="mt-2 flex gap-2"><span class="rounded bg-amber-100 px-2 py-1">WebUntis: {{ item.webuntis_status }}</span><span class="rounded bg-orange-100 px-2 py-1">Moodle: {{ item.moodle_status }}</span></div></div><p v-if="!comparison.status_differences.length" class="text-sm text-slate-400">Keine Statusabweichungen</p></div></details>
-        <details open class="rounded-xl border border-emerald-200 bg-white p-5"><summary class="cursor-pointer list-none text-lg font-bold text-emerald-800">Statusübereinstimmungen ({{ comparison.matching_count }})</summary><div class="mt-3 max-h-72 overflow-y-auto pr-2"><div v-for="item in comparison.matching_records" :key="item.key" class="mb-2 rounded-lg bg-emerald-50 p-3 text-sm"><p class="font-bold">{{ item.student_name }} · {{ item.date }}</p><p class="mt-1 text-slate-600">Status: {{ item.webuntis_status }}</p></div><p v-if="!comparison.matching_records.length" class="text-sm text-slate-400">Keine Statusübereinstimmung</p></div></details>
-      </section>
-      <section class="mt-6 grid gap-6 lg:grid-cols-2">
-        <details open class="rounded-xl border bg-white p-5"><summary class="cursor-pointer list-none text-lg font-bold">Logs</summary><div class="mt-3 max-h-72 overflow-y-auto pr-2"><div v-for="log in logs" :key="log.id" class="mb-2 rounded bg-slate-50 p-3 text-sm"><b>{{ log.message }}</b><span class="ml-2 text-slate-500">{{ log.source }} · {{ log.changes }} Änderungen</span></div><p v-if="!logs.length" class="text-sm text-slate-400">Keine Logs vorhanden</p></div></details>
-        <details open class="rounded-xl border bg-white p-5"><summary class="cursor-pointer list-none text-lg font-bold">Vergleiche</summary><div class="mt-3 max-h-72 overflow-y-auto pr-2"><div v-for="change in changes" :key="change.id" class="mb-2 rounded bg-slate-50 p-3 text-sm"><b>{{ change.entity_type }}</b> {{ change.entity_id }} – {{ change.change_type }}</div><p v-if="!changes.length" class="text-sm text-slate-400">Keine Vergleiche vorhanden</p></div></details>
+      <section class="flex-1 border-l border-slate-200 bg-[#f7f8fb]">
+        <header class="flex items-center justify-end gap-4 border-b bg-white px-4 py-4 md:px-8">
+          <div class="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-1 text-[36px] text-emerald-800">
+            <span class="h-3 w-3 rounded-full bg-emerald-600"></span>
+            <span>Verbunden (Render)</span>
+          </div>
+          <button @click="triggerSync" class="rounded-xl bg-[#4d6c93] px-5 py-3 text-[34px] font-medium text-white">Sync jetzt starten</button>
+        </header>
+
+        <div class="p-4 md:p-8">
+          <h1 class="mb-5 text-[56px] font-semibold tracking-tight text-slate-900">Dashboard</h1>
+
+          <section class="grid gap-4 md:grid-cols-3">
+            <article class="rounded-2xl border border-slate-300 bg-white px-5 py-4 shadow-sm">
+              <p class="text-[40px] font-medium text-slate-900">Offene Deltas</p>
+              <p class="mt-1 text-[58px] font-semibold leading-none text-slate-900">{{ openDeltaCount }}</p>
+            </article>
+            <article class="rounded-2xl border border-slate-300 bg-white px-5 py-4 shadow-sm">
+              <p class="text-[40px] font-medium text-slate-900">Synchronisiert</p>
+              <p class="mt-1 text-[58px] font-semibold leading-none text-slate-900">{{ syncedCount }}</p>
+            </article>
+            <article class="rounded-2xl border border-slate-300 bg-white px-5 py-4 shadow-sm">
+              <p class="text-[40px] font-medium text-slate-900">Letzter Abgleich</p>
+              <p class="mt-1 text-[58px] font-semibold leading-none text-slate-900">{{ lastSyncLabel }}</p>
+            </article>
+          </section>
+
+          <section class="mt-5 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
+            <div class="border-b border-slate-300 px-5 py-4">
+              <h2 class="text-[48px] font-semibold text-slate-900">Erkannte Abweichungen (Deltas)</h2>
+            </div>
+
+            <div class="overflow-auto">
+              <table class="min-w-full text-left text-[40px] text-slate-900">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Pseudonym-ID</th>
+                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Klasse</th>
+                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Zeitraum</th>
+                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Sync-Status</th>
+                    <th class="border-b border-slate-300 px-5 py-3 font-medium">Zielplattform-Verweis</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in syncTableRows" :key="row.id" class="border-b border-slate-200 last:border-0">
+                    <td class="px-5 py-3">{{ row.pseudo }}</td>
+                    <td class="px-5 py-3">{{ row.className }}</td>
+                    <td class="px-5 py-3">{{ row.period }}</td>
+                    <td class="px-5 py-3">
+                      <span :class="[
+                        'inline-flex rounded-full px-3 py-1 text-[34px] font-medium text-white',
+                        row.status === 'Neu' ? 'bg-emerald-500' : row.status === 'Geändert' ? 'bg-amber-500' : 'bg-slate-500'
+                      ]">{{ row.status }}</span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <button @click="navigateTo(row.targetMode)" class="inline-flex items-center gap-2 hover:underline">
+                        {{ row.targetText }} <span aria-hidden="true">→</span>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
 
