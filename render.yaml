@@ -35,7 +35,7 @@ services:
       - key: APP_FRONTEND_MODE
         value: sync
       - key: APP_LOGO_URL
-        value: ""
+        value: /sync-logo.png
       - key: SYNC_ADMIN_USERNAME
         value: admin
       - key: SYNC_ADMIN_PASSWORD_SALT
