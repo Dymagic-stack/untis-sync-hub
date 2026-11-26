@@ -30,6 +30,123 @@ services:
           type: web
           name: untis-sync-hub
           envVarKey: RENDER_EXTERNAL_URL
+      - key: APP_TITLE
+        value: ATIW Sync Hub
+      - key: APP_FRONTEND_MODE
+        value: sync
+      - key: SYNC_HUB_URL
+        fromService:
+          type: web
+          name: untis-sync-hub
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: WEBUNTIS_URL
+        fromService:
+          type: web
+          name: untis-webuntis
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MOODLE_URL
+        fromService:
+          type: web
+          name: untis-moodle
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: APP_KEY
+        generateValue: true
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: CACHE_STORE
+        value: database
+      - key: SESSION_DRIVER
+        value: file
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: MOCK_API_URL
+        value: https://openuntis-mock.onrender.com
+
+  - type: web
+    name: untis-webuntis
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /up
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_TITLE
+        value: ATIW WebUntis
+      - key: APP_FRONTEND_MODE
+        value: webuntis
+      - key: APP_URL
+        fromService:
+          type: web
+          name: untis-webuntis
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: SYNC_HUB_URL
+        fromService:
+          type: web
+          name: untis-sync-hub
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: WEBUNTIS_URL
+        fromService:
+          type: web
+          name: untis-webuntis
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MOODLE_URL
+        fromService:
+          type: web
+          name: untis-moodle
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: APP_KEY
+        generateValue: true
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: CACHE_STORE
+        value: database
+      - key: SESSION_DRIVER
+        value: file
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: MOCK_API_URL
+        value: https://openuntis-mock.onrender.com
+
+  - type: web
+    name: untis-moodle
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /up
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_TITLE
+        value: ATIW Moodle
+      - key: APP_FRONTEND_MODE
+        value: moodle
+      - key: APP_URL
+        fromService:
+          type: web
+          name: untis-moodle
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: SYNC_HUB_URL
+        fromService:
+          type: web
+          name: untis-sync-hub
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: WEBUNTIS_URL
+        fromService:
+          type: web
+          name: untis-webuntis
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MOODLE_URL
+        fromService:
+          type: web
+          name: untis-moodle
+          envVarKey: RENDER_EXTERNAL_URL
       - key: APP_KEY
         generateValue: true
       - key: DB_CONNECTION

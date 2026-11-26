@@ -1,12 +1,22 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 
-const mode = ref('webuntis')
+const runtimeConfig = window.ATIW_CONFIG || {}
+const validModes = ['sync', 'moodle', 'webuntis']
+const initialMode = validModes.includes(runtimeConfig.frontendMode) ? runtimeConfig.frontendMode : 'webuntis'
+
+const appUrls = {
+  sync: runtimeConfig.syncHubUrl || '',
+  moodle: runtimeConfig.moodleUrl || '',
+  webuntis: runtimeConfig.webuntisUrl || '',
+}
+
+const mode = ref(initialMode)
 const isAuthenticated = ref(false)
 const role = ref('student')
 const loginForm = ref({ username: '', password: '', role: 'student' })
 const loginError = ref('')
-const api = '/api/sync-hub'
+const api = (runtimeConfig.apiBaseUrl || '/api/sync-hub').replace(/\/$/, '')
 const activeMenu = ref('Stundenplan')
 const dashboard = ref({ stats: {}, classes: [], absences: [] })
 const timetable = ref([])
@@ -221,13 +231,22 @@ function logout() {
   isAuthenticated.value = false
   loginForm.value = { username: '', password: '', role: role.value }
 }
+
+function navigateTo(targetMode) {
+  const targetUrl = appUrls[targetMode]
+  if (targetUrl) {
+    window.location.assign(targetUrl)
+    return
+  }
+  mode.value = targetMode
+}
 </script>
 
 <template>
   <div class="min-h-screen bg-slate-100 text-slate-800">
     <header v-if="mode === 'sync'" class="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-white px-6">
-      <button @click="mode = 'webuntis'" class="rounded border px-3 py-2">Zur WebUntis-Oberfläche</button>
-      <div class="flex gap-2"><button @click="mode = 'moodle'" class="rounded border px-3 py-2">Zu Moodle</button><button @click="triggerSync" class="rounded bg-sky-600 px-4 py-2 font-bold text-white">Synchronisieren</button></div>
+      <button @click="navigateTo('webuntis')" class="rounded border px-3 py-2">Zur WebUntis-Oberfläche</button>
+      <div class="flex gap-2"><button @click="navigateTo('moodle')" class="rounded border px-3 py-2">Zu Moodle</button><button @click="triggerSync" class="rounded bg-sky-600 px-4 py-2 font-bold text-white">Synchronisieren</button></div>
     </header>
 
     <main v-if="mode === 'sync'" class="mx-auto max-w-6xl p-6">
@@ -256,7 +275,7 @@ function logout() {
             <div class="text-xl font-black text-[#004b87]">ATIW Moodle</div>
             <nav class="flex gap-6 text-sm"><span>Dashboard</span><span>Meine Kurse</span><span class="border-b-2 border-sky-500 pb-5 pt-5 font-bold text-sky-800">Kursbereich</span><span>Teilnehmer</span><span class="text-slate-400">Bewertungen</span></nav>
           </div>
-          <div class="flex gap-2"><button @click="mode = 'sync'" class="rounded border px-3 py-2 text-sm">Zum Sync-Hub</button><button @click="mode = 'webuntis'" class="rounded border px-3 py-2 text-sm">Zu WebUntis</button></div>
+          <div class="flex gap-2"><button @click="navigateTo('sync')" class="rounded border px-3 py-2 text-sm">Zum Sync-Hub</button><button @click="navigateTo('webuntis')" class="rounded border px-3 py-2 text-sm">Zu WebUntis</button></div>
         </div>
       </header>
 
@@ -342,7 +361,7 @@ function logout() {
         </main>
       </template>
       <template v-else>
-      <header class="flex h-16 items-center justify-between border-b bg-white px-3 md:px-5"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-600 font-black text-white">WU</div><div><p class="text-sm font-bold">Untis Demo Schule</p><p class="text-xs text-slate-500">WebUntis · {{ role === 'teacher' ? 'Lehrkraft' : 'Schüler/in' }}</p></div></div><div class="flex items-center gap-2"><button @click="mobileMenuOpen = !mobileMenuOpen" class="rounded border px-3 py-2 text-xs font-bold md:hidden">Menü</button><button @click="mode = 'sync'" class="rounded bg-sky-600 px-3 py-2 text-xs font-bold text-white md:px-4 md:text-sm">Sync-Hub</button><button @click="mode = 'moodle'" class="hidden rounded border px-4 py-2 text-sm font-bold md:block">Moodle</button><button @click="logout" class="rounded border px-3 py-2 text-xs font-bold md:text-sm">Abmelden</button></div></header>
+      <header class="flex h-16 items-center justify-between border-b bg-white px-3 md:px-5"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-600 font-black text-white">WU</div><div><p class="text-sm font-bold">Untis Demo Schule</p><p class="text-xs text-slate-500">WebUntis · {{ role === 'teacher' ? 'Lehrkraft' : 'Schüler/in' }}</p></div></div><div class="flex items-center gap-2"><button @click="mobileMenuOpen = !mobileMenuOpen" class="rounded border px-3 py-2 text-xs font-bold md:hidden">Menü</button><button @click="navigateTo('sync')" class="rounded bg-sky-600 px-3 py-2 text-xs font-bold text-white md:px-4 md:text-sm">Sync-Hub</button><button @click="navigateTo('moodle')" class="hidden rounded border px-4 py-2 text-sm font-bold md:block">Moodle</button><button @click="logout" class="rounded border px-3 py-2 text-xs font-bold md:text-sm">Abmelden</button></div></header>
       <div class="flex min-h-[calc(100vh-64px)] flex-col md:flex-row"><aside :class="['border-r bg-white p-3 md:w-56 md:shrink-0', mobileMenuOpen ? 'block' : 'hidden md:block']"><button v-for="menu in webuntisMenus" :key="menu" @click="activeMenu = menu; mobileMenuOpen = false" :class="['mb-1 w-full rounded px-3 py-2 text-left', activeMenu === menu ? 'bg-orange-50 font-bold text-orange-700' : 'text-slate-600']">{{ menu }}</button></aside><main class="flex-1 p-4 md:p-5"><div class="mb-5 flex items-center justify-between gap-2"><h1 class="text-xl font-bold md:text-2xl">{{ activeMenu }}</h1><div class="flex gap-2"><button v-if="activeMenu === 'Fehlzeiten' && role === 'teacher'" @click="absenceOpen = true" class="rounded bg-orange-600 px-3 py-2 text-xs font-bold text-white md:text-sm">Fehlzeit</button><button v-if="activeMenu === 'Stundenplan' && role === 'teacher'" @click="lessonOpen = true" class="rounded bg-orange-600 px-3 py-2 text-xs font-bold text-white md:text-sm">Stunde</button></div></div>
         <div v-if="activeMenu === 'Stundenplan'" class="overflow-auto rounded-2xl bg-slate-100 p-3">
           <div class="grid grid-cols-[60px_repeat(5,minmax(140px,1fr))] gap-2">
