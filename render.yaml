@@ -5,6 +5,7 @@ services:
     plan: free
     region: frankfurt
     dockerfilePath: ./openuntis-mock/Dockerfile
+    dockerContext: ./openuntis-mock
     healthCheckPath: /
     envVars:
       - key: PORT
@@ -48,6 +49,7 @@ services:
     plan: free
     region: frankfurt
     dockerfilePath: ./sync-runner/Dockerfile
+    dockerContext: ./sync-runner
     healthCheckPath: /healthz
     envVars:
       - key: SYNC_INTERVAL_MS
