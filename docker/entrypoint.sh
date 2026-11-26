@@ -15,7 +15,8 @@ php-fpm -D
 
 php artisan migrate --force
 php artisan storage:link --force >/dev/null 2>&1 || true
-php artisan config:cache
-php artisan route:cache
+# Cache-Warmup ist optional und darf den Start im Free-Tier nicht blockieren.
+php artisan config:cache || true
+php artisan route:cache || true
 
 exec "$@"
