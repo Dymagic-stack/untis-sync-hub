@@ -90,6 +90,7 @@ Hinweis zum Free-Tier:
 - Bei Docker-Services in Unterordnern muss im Blueprint `dockerContext` gesetzt sein (z. B. `./openuntis-mock`, `./sync-runner`).
 - Der Hub sollte `MOCK_API_URL` auf die öffentliche Mock-URL setzen (`https://openuntis-mock.onrender.com`).
 - Für den Hub sollte `SESSION_DRIVER=file` genutzt werden, sofern keine `sessions`-Tabelle vorhanden ist.
+- `APP_KEY` muss im Laravel-Format `base64:...` vorliegen; der EntryPoint setzt bei Bedarf automatisch einen gültigen Schlüssel.
 
 Nach erfolgreichem Deploy ist die Anwendung über die Render-URL des Services `untis-sync-hub` erreichbar.
 

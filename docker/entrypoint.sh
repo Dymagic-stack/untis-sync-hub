@@ -7,8 +7,10 @@ mkdir -p database storage/framework/cache storage/framework/sessions storage/fra
 [ -f database/database.sqlite ] || touch database/database.sqlite
 chown -R www-data:www-data database storage bootstrap/cache
 
-if [ -z "${APP_KEY:-}" ] && ! grep -q '^APP_KEY=base64:' .env 2>/dev/null; then
-    php artisan key:generate --force --no-ansi
+# Render generateValue liefert kein Laravel-Key-Format. Fuer stabile Web-Routen
+# erzwingen wir einen gueltigen APP_KEY mit base64:-Prefix.
+if [ -z "${APP_KEY:-}" ] || ! echo "${APP_KEY}" | grep -q '^base64:'; then
+    export APP_KEY="base64:$(php -r 'echo base64_encode(random_bytes(32));')"
 fi
 
 php-fpm -D
