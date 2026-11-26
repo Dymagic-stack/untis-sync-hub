@@ -37,7 +37,7 @@ services:
       - key: CACHE_STORE
         value: database
       - key: SESSION_DRIVER
-        value: database
+        value: file
       - key: QUEUE_CONNECTION
         value: database
       - key: MOCK_API_URL
