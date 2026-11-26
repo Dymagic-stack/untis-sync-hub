@@ -63,3 +63,24 @@ node openuntis-mock/mock-server.cjs
 ## Produktionsumgebung
 
 Für einen produktiven Host müssen `APP_URL`, `APP_KEY` und `MOCK_API_URL` gesetzt werden. Die SQLite-Datenbank muss persistent gemountet oder durch eine andere Laravel-kompatible Datenbank ersetzt werden.
+
+## Online bereitstellen ohne lokale Installation
+
+Wenn auf dem lokalen Gerät keine ausführbaren Dateien installiert werden dürfen, kann das Projekt direkt aus GitHub auf Render bereitgestellt werden.
+
+Voraussetzung:
+
+- Das Repository enthält `render.yaml` im Root.
+
+Deployment in Render (nur Browser):
+
+1. In Render: **New +** -> **Blueprint** wählen.
+2. GitHub-Repository `Dymagic-stack/untis-sync-hub` verbinden.
+3. `render.yaml` auswählen und Deployment starten.
+
+Dabei werden zwei Services erstellt:
+
+- `openuntis-mock` als private Docker-Service
+- `untis-sync-hub` als öffentliche Web-App
+
+Nach erfolgreichem Deploy ist die Anwendung über die Render-URL des Services `untis-sync-hub` erreichbar.

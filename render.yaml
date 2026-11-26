@@ -1,0 +1,46 @@
+services:
+  - type: pserv
+    name: openuntis-mock
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./openuntis-mock/Dockerfile
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: MOCK_PORT
+        value: 8000
+
+  - type: web
+    name: untis-sync-hub
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    disk:
+      name: sqlite-data
+      mountPath: /var/www/html/database
+      sizeGB: 1
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_URL
+        fromService:
+          type: web
+          name: untis-sync-hub
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: APP_KEY
+        generateValue: true
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: CACHE_STORE
+        value: database
+      - key: SESSION_DRIVER
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: MOCK_API_URL
+        value: http://openuntis-mock:8000
