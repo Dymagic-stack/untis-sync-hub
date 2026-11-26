@@ -83,4 +83,8 @@ Dabei werden zwei Services erstellt:
 - `openuntis-mock` als private Docker-Service
 - `untis-sync-hub` als öffentliche Web-App
 
+Hinweis zum Free-Tier:
+
+- Render Free unterstützt keine Persistent Disks. SQLite-Daten sind daher nicht dauerhaft und können bei Redeploy/Neustart verloren gehen.
+
 Nach erfolgreichem Deploy ist die Anwendung über die Render-URL des Services `untis-sync-hub` erreichbar.

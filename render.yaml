@@ -18,10 +18,6 @@ services:
     region: frankfurt
     dockerfilePath: ./Dockerfile
     healthCheckPath: /
-    disk:
-      name: sqlite-data
-      mountPath: /var/www/html/database
-      sizeGB: 1
     envVars:
       - key: APP_ENV
         value: production
