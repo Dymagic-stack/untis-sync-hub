@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use App\Models\SyncLog;
 use App\Models\SyncChange;
 use App\Models\MoodleAbsence;
@@ -133,6 +134,64 @@ class SyncHubController extends Controller
     public function adminLogout(): JsonResponse
     {
         return response()->json(['status' => 'ok']);
+    }
+
+    public function sendReminder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'recipient' => ['required', 'string', 'max:255'],
+            'message' => ['required', 'string', 'max:2000'],
+            'entry' => ['required', 'array'],
+        ]);
+
+        $entry = $validated['entry'];
+        $subject = 'Sync-Hub Erinnerung: Abweichung prüfen';
+        $bodyLines = [
+            'Bitte folgenden Eintrag prüfen und auf der Zielplattform nachtragen:',
+            '',
+            'Pseudonym-ID: ' . ($entry['pseudo'] ?? 'n/a'),
+            'Klasse: ' . ($entry['className'] ?? 'n/a'),
+            'Zeitraum: ' . ($entry['period'] ?? 'n/a'),
+            'Szenario: ' . ($entry['status'] ?? 'n/a'),
+            'WebUntis Status: ' . ($entry['webuntisStatus'] ?? 'fehlt'),
+            'Moodle Status: ' . ($entry['moodleStatus'] ?? 'fehlt'),
+            '',
+            'Notiz:',
+            (string) $validated['message'],
+        ];
+        $body = implode("\n", $bodyLines);
+
+        $mailAttempted = false;
+        $mailSent = false;
+
+        if (filter_var($validated['recipient'], FILTER_VALIDATE_EMAIL)) {
+            $mailAttempted = true;
+            try {
+                Mail::raw($body, function ($mail) use ($validated, $subject) {
+                    $mail->to($validated['recipient'])->subject($subject);
+                });
+                $mailSent = true;
+            } catch (\Throwable $e) {
+                $mailSent = false;
+            }
+        }
+
+        SyncLog::create([
+            'direction' => 'hub_to_team',
+            'source' => 'sync-hub',
+            'status' => $mailSent ? 'sent' : 'queued',
+            'changes' => 1,
+            'message' => 'Erinnerung an ' . $validated['recipient'] . ' für Delta ' . ($entry['pseudo'] ?? 'n/a'),
+        ]);
+
+        return response()->json([
+            'status' => 'ok',
+            'mail_attempted' => $mailAttempted,
+            'mail_sent' => $mailSent,
+            'message' => $mailSent
+                ? 'Erinnerung wurde per E-Mail gesendet.'
+                : 'Erinnerung wurde protokolliert. Kein SMTP oder keine E-Mail-Adresse verfügbar.',
+        ]);
     }
 
     public function dashboard(): array

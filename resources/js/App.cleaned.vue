@@ -42,6 +42,11 @@ const syncLoginForm = ref({ username: '', password: '' })
 const syncLoginError = ref('')
 const syncAuthPending = ref(false)
 const syncAuthenticated = ref(mode.value !== 'sync')
+const selectedSyncRow = ref(null)
+const reminderRecipient = ref('fachkraft@atiw-demo.local')
+const reminderMessage = ref('Bitte Abweichung prüfen und auf der Zielplattform nachtragen.')
+const reminderPending = ref(false)
+const reminderNotice = ref('')
 
 const days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag']
 
@@ -334,6 +339,9 @@ const syncTableRows = computed(() => {
     targetText: 'In Moodle nachtragen',
     targetMode: 'moodle',
     scenario: 'webuntis_only',
+    studentName: item.studentName || null,
+    webuntisStatus: item.status || 'UNCONFIRMED',
+    moodleStatus: null,
   }))
 
   const moodleOnly = (comparison.value.only_in_moodle || []).map((item, index) => ({
@@ -345,6 +353,9 @@ const syncTableRows = computed(() => {
     targetText: 'In WebUntis prüfen',
     targetMode: 'webuntis',
     scenario: 'moodle_only',
+    studentName: item.student_name || null,
+    webuntisStatus: null,
+    moodleStatus: item.status || 'UNCONFIRMED',
   }))
 
   const changed = (comparison.value.status_differences || []).map((item, index) => ({
@@ -356,6 +367,9 @@ const syncTableRows = computed(() => {
     targetText: 'In WebUntis prüfen',
     targetMode: 'webuntis',
     scenario: 'status_diff',
+    studentName: item.student_name || null,
+    webuntisStatus: item.webuntis_status || 'UNCONFIRMED',
+    moodleStatus: item.moodle_status || 'UNCONFIRMED',
   }))
 
   const matched = (comparison.value.matching_records || []).map((item, index) => ({
@@ -367,6 +381,9 @@ const syncTableRows = computed(() => {
     targetText: 'In WebUntis prüfen',
     targetMode: 'webuntis',
     scenario: 'matching',
+    studentName: item.student_name || null,
+    webuntisStatus: item.webuntis_status || 'UNCONFIRMED',
+    moodleStatus: item.moodle_status || 'UNCONFIRMED',
   }))
 
   return [...webuntisOnly, ...moodleOnly, ...changed, ...matched]
@@ -392,6 +409,73 @@ function interleaveRows(groups, limit) {
     index += 1
   }
   return result
+}
+
+function syncDeviationSummary(row) {
+  if (!row) return ''
+  if (row.scenario === 'webuntis_only') {
+    return `Eintrag existiert nur in WebUntis (${row.webuntisStatus || 'UNCONFIRMED'}). In Moodle fehlt der Datensatz.`
+  }
+  if (row.scenario === 'moodle_only') {
+    return `Eintrag existiert nur in Moodle (${row.moodleStatus || 'UNCONFIRMED'}). In WebUntis fehlt der Datensatz.`
+  }
+  if (row.scenario === 'status_diff') {
+    return `Statusabweichung: WebUntis=${row.webuntisStatus || 'UNCONFIRMED'}, Moodle=${row.moodleStatus || 'UNCONFIRMED'}.`
+  }
+  return `Eintrag ist auf beiden Plattformen synchron (${row.webuntisStatus || row.moodleStatus || 'UNCONFIRMED'}).`
+}
+
+function openSyncDetails(row) {
+  selectedSyncRow.value = row
+  reminderNotice.value = ''
+}
+
+function closeSyncDetails() {
+  selectedSyncRow.value = null
+  reminderNotice.value = ''
+}
+
+async function sendSyncReminder() {
+  if (!selectedSyncRow.value) {
+    return
+  }
+
+  reminderPending.value = true
+  reminderNotice.value = ''
+
+  try {
+    const response = await fetch(`${api}/reminders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient: reminderRecipient.value,
+        message: reminderMessage.value,
+        entry: {
+          pseudo: selectedSyncRow.value.pseudo,
+          className: selectedSyncRow.value.className,
+          period: selectedSyncRow.value.period,
+          status: selectedSyncRow.value.status,
+          scenario: selectedSyncRow.value.scenario,
+          targetMode: selectedSyncRow.value.targetMode,
+          webuntisStatus: selectedSyncRow.value.webuntisStatus || null,
+          moodleStatus: selectedSyncRow.value.moodleStatus || null,
+          studentName: selectedSyncRow.value.studentName || null,
+        },
+      }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      reminderNotice.value = payload?.message || 'Erinnerung konnte nicht gesendet werden.'
+      return
+    }
+
+    reminderNotice.value = payload?.message || 'Erinnerung wurde gesendet.'
+  } catch {
+    reminderNotice.value = 'Erinnerung konnte nicht gesendet werden.'
+  } finally {
+    reminderPending.value = false
+  }
 }
 
 const visibleSyncRows = computed(() => {
@@ -597,7 +681,7 @@ function navigateToSwagger() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="row in visibleSyncRows" :key="row.id" class="border-b border-slate-100 text-sm text-slate-800 last:border-0">
+                    <tr v-for="row in visibleSyncRows" :key="row.id" @click="openSyncDetails(row)" class="cursor-pointer border-b border-slate-100 text-sm text-slate-800 transition hover:bg-slate-50 last:border-0">
                       <td class="px-6 py-4">{{ row.pseudo }}</td>
                       <td class="px-6 py-4">{{ row.className }}</td>
                       <td class="px-6 py-4">{{ row.period }}</td>
@@ -608,7 +692,7 @@ function navigateToSwagger() {
                         ]">{{ row.status }}</span>
                       </td>
                       <td class="px-6 py-4">
-                        <button @click="navigateTo(row.targetMode)" class="inline-flex items-center gap-1.5 font-medium hover:text-blue-700">
+                        <button @click.stop="navigateTo(row.targetMode)" class="inline-flex items-center gap-1.5 font-medium hover:text-blue-700">
                           {{ row.targetText }} <span aria-hidden="true">→</span>
                         </button>
                       </td>
@@ -644,6 +728,48 @@ function navigateToSwagger() {
         </section>
       </div>
     </main>
+
+    <div v-if="selectedSyncRow" @click.self="closeSyncDetails" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4">
+      <div class="w-full max-w-2xl rounded-xl bg-white p-5 shadow-2xl">
+        <div class="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Delta-Detail</h2>
+            <p class="text-xs text-slate-500">Pseudonym-ID: {{ selectedSyncRow.pseudo }}</p>
+          </div>
+          <button @click="closeSyncDetails" class="rounded border px-2 py-1 text-xs">✕</button>
+        </div>
+
+        <div class="grid gap-3 rounded-lg bg-slate-50 p-4 text-sm md:grid-cols-2">
+          <p><span class="font-semibold">Klasse:</span> {{ selectedSyncRow.className }}</p>
+          <p><span class="font-semibold">Zeitraum:</span> {{ selectedSyncRow.period }}</p>
+          <p><span class="font-semibold">Student/in:</span> {{ selectedSyncRow.studentName || 'n/a' }}</p>
+          <p><span class="font-semibold">Szenario:</span> {{ selectedSyncRow.status }}</p>
+          <p><span class="font-semibold">WebUntis Status:</span> {{ selectedSyncRow.webuntisStatus || 'fehlt' }}</p>
+          <p><span class="font-semibold">Moodle Status:</span> {{ selectedSyncRow.moodleStatus || 'fehlt' }}</p>
+        </div>
+
+        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {{ syncDeviationSummary(selectedSyncRow) }}
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <button @click="navigateTo(selectedSyncRow.targetMode)" class="rounded bg-[#3B669B] px-4 py-2 text-sm font-medium text-white hover:bg-[#2B507E]">Zur Zielplattform</button>
+        </div>
+
+        <div class="mt-5 border-t pt-4">
+          <h3 class="text-sm font-bold text-slate-800">Automatische Erinnerung senden</h3>
+          <p class="mt-1 text-xs text-slate-500">Versendet eine Benachrichtigung zum Nachtragen/Korrigieren dieses Eintrags.</p>
+          <div class="mt-3 space-y-2">
+            <input v-model="reminderRecipient" placeholder="Empfänger (E-Mail oder Team-Adresse)" class="w-full rounded border px-3 py-2 text-sm" />
+            <textarea v-model="reminderMessage" rows="3" class="w-full rounded border px-3 py-2 text-sm"></textarea>
+          </div>
+          <div class="mt-3 flex items-center justify-between gap-3">
+            <p v-if="reminderNotice" class="text-xs text-slate-600">{{ reminderNotice }}</p>
+            <button @click="sendSyncReminder" :disabled="reminderPending" class="ml-auto rounded border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 disabled:opacity-60">{{ reminderPending ? 'Sende...' : 'Erinnerung senden' }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <main v-else-if="mode === 'moodle'" class="min-h-screen bg-[#f2f4f7]">
       <header class="h-16 border-b bg-white">
