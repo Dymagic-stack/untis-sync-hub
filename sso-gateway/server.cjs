@@ -8,6 +8,7 @@ const port = Number(process.env.PORT || 10010);
 
 const ssoMode = String(process.env.SSO_MODE || 'mock').toLowerCase();
 const sessionCookieName = process.env.SSO_COOKIE_NAME || 'atiw_sso_session';
+const appContextCookieName = process.env.SSO_APP_CONTEXT_COOKIE || 'atiw_app_ctx';
 const sessionTtlSec = Number(process.env.SSO_SESSION_TTL_SEC || 43200);
 const sessionSecret = String(process.env.SSO_SESSION_SECRET || 'atiw-dev-session-secret-change-me');
 
@@ -206,8 +207,29 @@ function upstreamFromReferer(req) {
   }
 }
 
+function upstreamFromContextCookie(req) {
+  const context = req.cookies[appContextCookieName];
+  if (context === 'sync-hub' || context === 'webuntis' || context === 'moodle') {
+    return context;
+  }
+  return null;
+}
+
+function withAppContext(context, handler) {
+  return (req, res, next) => {
+    res.cookie(appContextCookieName, context, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: sessionTtlSec * 1000,
+    });
+    return handler(req, res, next);
+  };
+}
+
 function proxySharedAssetByReferer(req, res, next) {
-  const upstream = upstreamFromReferer(req);
+  const upstream = upstreamFromReferer(req) || upstreamFromContextCookie(req);
   if (upstream === 'sync-hub') {
     return syncHubAssetProxy(req, res, next);
   }
@@ -311,10 +333,11 @@ app.post('/login', (req, res) => {
 
 app.get('/logout', (_req, res) => {
   res.clearCookie(sessionCookieName, { path: '/' });
+  res.clearCookie(appContextCookieName, { path: '/' });
   res.redirect('/login');
 });
 
-app.get('/build/*', requireAuth, proxySharedAssetByReferer);
+app.use('/build', requireAuth, proxySharedAssetByReferer);
 app.get('/sync-logo.png', requireAuth, proxySharedAssetByReferer);
 app.get('/favicon.ico', requireAuth, proxySharedAssetByReferer);
 app.get('/robots.txt', requireAuth, proxySharedAssetByReferer);
@@ -339,9 +362,9 @@ app.get('/', requireAuth, (req, res) => {
 </body></html>`);
 });
 
-app.use('/sync-hub', requireSyncHubAccess, syncHubProxy);
-app.use('/webuntis', requireAuth, webuntisProxy);
-app.use('/moodle', requireAuth, moodleProxy);
+app.use('/sync-hub', requireSyncHubAccess, withAppContext('sync-hub', syncHubProxy));
+app.use('/webuntis', requireAuth, withAppContext('webuntis', webuntisProxy));
+app.use('/moodle', requireAuth, withAppContext('moodle', moodleProxy));
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`ATIW SSO Gateway listening on ${port}`);
