@@ -112,7 +112,240 @@ let lessons = [
 
 let seating = {}
 
-app.get('/', (_req, res) => res.json({ name: 'ATIW OpenUntis Mock', status: 'running' }))
+function renderMockUi() {
+  return `<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ATIW OpenUntis Mock API</title>
+  <style>
+    :root {
+      --bg: #f2f5ee;
+      --bg-accent: #d7e9ef;
+      --card: #ffffff;
+      --ink: #1c232f;
+      --muted: #58606f;
+      --border: #d6dde4;
+      --primary: #0e6f8f;
+      --primary-deep: #0b5670;
+      --tag: #eef4fa;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: "Segoe UI", "Noto Sans", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--ink);
+      background: radial-gradient(circle at 95% 0%, var(--bg-accent), transparent 35%), var(--bg);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 16px 40px; }
+    .hero {
+      background: linear-gradient(140deg, #f8fdff, #ffffff 40%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 8px 26px rgba(16, 44, 60, 0.1);
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+    h1 { margin: 0 0 8px; font-size: 1.65rem; }
+    .lead { margin: 0; color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 11px;
+    }
+    .k { color: var(--muted); font-size: 0.8rem; margin-bottom: 4px; }
+    .v { font-size: 1.18rem; font-weight: 800; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 12px;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .panel {
+      border: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .panel h2 {
+      margin: 0;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.95rem;
+      letter-spacing: 0.01em;
+    }
+    .list { margin: 0; padding: 10px; list-style: none; }
+    .list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      margin-bottom: 8px;
+      padding: 9px 10px;
+      font-size: 0.9rem;
+    }
+    .tag {
+      background: var(--tag);
+      border: 1px solid #d5e0ec;
+      color: #355a7f;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    button {
+      border: 0;
+      border-radius: 9px;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 110ms ease, background 110ms ease;
+    }
+    button:hover { background: var(--primary-deep); transform: translateY(-1px); }
+    pre {
+      margin: 0;
+      padding: 12px;
+      font-family: var(--mono);
+      font-size: 0.77rem;
+      white-space: pre-wrap;
+      max-height: 420px;
+      overflow: auto;
+      background: #f8fafc;
+    }
+    .foot {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>ATIW OpenUntis Mock API</h1>
+      <p class="lead">Visualisiert die Mock-Datenquelle fuer den Sync-Hub und bietet schnelle API-Inspektion.</p>
+      <div id="stats" class="grid"></div>
+    </section>
+
+    <section class="layout">
+      <article class="panel">
+        <h2>Wichtige Endpunkte</h2>
+        <ul class="list">
+          <li><span>/api/dashboard-stats</span> <span class="tag">Dashboard</span></li>
+          <li><span>/api/students?search=...</span> <span class="tag">Students</span></li>
+          <li><span>/api/classes</span> <span class="tag">Classes</span></li>
+          <li><span>/api/subjects</span> <span class="tag">Subjects</span></li>
+          <li><span>/api/rooms</span> <span class="tag">Rooms</span></li>
+          <li><span>/api/absences</span> <span class="tag">Absences</span></li>
+          <li><span>/api/timetable</span> <span class="tag">Timetable</span></li>
+          <li><span>/api/seating/:className</span> <span class="tag">Seating</span></li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>Live API Vorschau</h2>
+        <div class="controls">
+          <button data-endpoint="/api/dashboard-stats">Dashboard</button>
+          <button data-endpoint="/api/students">Students</button>
+          <button data-endpoint="/api/absences">Absences</button>
+          <button data-endpoint="/api/timetable">Timetable</button>
+        </div>
+        <pre id="preview">Lade Daten ...</pre>
+      </article>
+    </section>
+
+    <p class="foot">Hinweis: Daten liegen im RAM des Containers. Ein Neustart setzt den Zustand auf den Demo-Seed zurueck.</p>
+  </main>
+
+  <script>
+    const statsContainer = document.getElementById('stats');
+    const preview = document.getElementById('preview');
+    const endpointButtons = document.querySelectorAll('button[data-endpoint]');
+
+    function statCard(label, value) {
+      return '<div class="card"><div class="k">' + label + '</div><div class="v">' + String(value) + '</div></div>';
+    }
+
+    async function loadSummary() {
+      const response = await fetch('/api/ui/summary');
+      const summary = await response.json();
+      statsContainer.innerHTML = [
+        statCard('Students', summary.students),
+        statCard('Classes', summary.classes),
+        statCard('Subjects', summary.subjects),
+        statCard('Rooms', summary.rooms),
+        statCard('Absences', summary.absences),
+        statCard('Lessons', summary.lessons)
+      ].join('');
+    }
+
+    async function showEndpoint(endpoint) {
+      preview.textContent = 'Lade ' + endpoint + ' ...';
+      try {
+        const response = await fetch(endpoint);
+        const data = await response.json();
+        preview.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        preview.textContent = 'Fehler: ' + error.message;
+      }
+    }
+
+    endpointButtons.forEach((button) => {
+      button.addEventListener('click', () => showEndpoint(button.dataset.endpoint));
+    });
+
+    Promise.all([loadSummary(), showEndpoint('/api/dashboard-stats')]).catch((error) => {
+      preview.textContent = 'Fehler beim Laden: ' + error.message;
+    });
+  </script>
+</body>
+</html>`
+}
+
+app.get('/', (req, res) => {
+  if (req.accepts(['html', 'json']) === 'json') {
+    return res.json({ name: 'ATIW OpenUntis Mock', status: 'running' })
+  }
+
+  return res.type('html').send(renderMockUi())
+})
+
+app.get('/api/ui/summary', (_req, res) => {
+  res.json({
+    students: students.length,
+    classes: classes.length,
+    subjects: subjects.length,
+    rooms: rooms.length,
+    absences: absences.length,
+    lessons: lessons.length,
+  })
+})
+
 app.get('/api/dashboard-stats', (_req, res) => res.json({ stats: { totalStudents: students.length, totalClasses: classes.length, todayAbsences: absences.length }, classes: classes.map((item) => item.name), absences }))
 app.get('/api/students', (req, res) => {
   const needle = String(req.query.search || '').toLowerCase()

@@ -1,5 +1,5 @@
 services:
-  app:
+  sync-hub:
     build:
       context: .
       dockerfile: Dockerfile
@@ -10,16 +10,71 @@ services:
       APP_DEBUG: false
       APP_KEY: "${APP_KEY:-}"
       APP_URL: "${APP_URL:-http://localhost:8080}"
+      APP_TITLE: "ATIW Sync Hub"
+      APP_FRONTEND_MODE: sync
+      SYNC_HUB_URL: "http://localhost:10010/sync-hub"
+      WEBUNTIS_URL: "http://localhost:10010/webuntis"
+      MOODLE_URL: "http://localhost:10010/moodle"
       DB_CONNECTION: sqlite
       CACHE_STORE: database
-      SESSION_DRIVER: database
+      SESSION_DRIVER: file
       QUEUE_CONNECTION: database
       MOCK_API_URL: http://openuntis:8000
     volumes:
-      - sqlite_data:/var/www/html/database
-      - laravel_storage:/var/www/html/storage
+      - sync_hub_sqlite_data:/var/www/html/database
+      - sync_hub_storage:/var/www/html/storage
     depends_on:
       - openuntis
+
+  webuntis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8081:80"
+    environment:
+      APP_ENV: production
+      APP_DEBUG: false
+      APP_KEY: "${APP_KEY:-}"
+      APP_URL: "http://localhost:8081"
+      APP_TITLE: "ATIW WebUntis"
+      APP_FRONTEND_MODE: webuntis
+      SYNC_HUB_URL: "http://localhost:10010/sync-hub"
+      WEBUNTIS_URL: "http://localhost:10010/webuntis"
+      MOODLE_URL: "http://localhost:10010/moodle"
+      DB_CONNECTION: sqlite
+      CACHE_STORE: database
+      SESSION_DRIVER: file
+      QUEUE_CONNECTION: database
+      MOCK_API_URL: http://openuntis:8000
+    depends_on:
+      - openuntis
+      - sync-hub
+
+  moodle:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8082:80"
+    environment:
+      APP_ENV: production
+      APP_DEBUG: false
+      APP_KEY: "${APP_KEY:-}"
+      APP_URL: "http://localhost:8082"
+      APP_TITLE: "ATIW Moodle"
+      APP_FRONTEND_MODE: moodle
+      SYNC_HUB_URL: "http://localhost:10010/sync-hub"
+      WEBUNTIS_URL: "http://localhost:10010/webuntis"
+      MOODLE_URL: "http://localhost:10010/moodle"
+      DB_CONNECTION: sqlite
+      CACHE_STORE: database
+      SESSION_DRIVER: file
+      QUEUE_CONNECTION: database
+      MOCK_API_URL: http://openuntis:8000
+    depends_on:
+      - openuntis
+      - sync-hub
 
   openuntis:
     build:
@@ -28,6 +83,24 @@ services:
     ports:
       - "8000:8000"
 
+  sso-gateway:
+    build:
+      context: ./sso-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "10010:10010"
+    environment:
+      PORT: 10010
+      SSO_MODE: mock
+      SSO_SESSION_SECRET: "${SSO_SESSION_SECRET:-atiw-local-dev-secret}"
+      SYNC_HUB_URL: http://sync-hub
+      WEBUNTIS_URL: http://webuntis
+      MOODLE_URL: http://moodle
+    depends_on:
+      - sync-hub
+      - webuntis
+      - moodle
+
 volumes:
-  sqlite_data:
-  laravel_storage:
+  sync_hub_sqlite_data:
+  sync_hub_storage:

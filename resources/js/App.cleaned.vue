@@ -4,6 +4,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 const runtimeConfig = window.ATIW_CONFIG || {}
 const validModes = ['sync', 'moodle', 'webuntis']
 const initialMode = validModes.includes(runtimeConfig.frontendMode) ? runtimeConfig.frontendMode : 'webuntis'
+const ssoRole = ['teacher', 'student'].includes(runtimeConfig.ssoRole) ? runtimeConfig.ssoRole : null
+const ssoLocked = Boolean(runtimeConfig.ssoLocked)
+const ssoCanAccessSync = runtimeConfig.ssoCanAccessSync !== false
 
 const appUrls = {
   sync: runtimeConfig.syncHubUrl || '',
@@ -13,9 +16,9 @@ const appUrls = {
 const appLogoUrl = runtimeConfig.appLogoUrl || ''
 
 const mode = ref(initialMode)
-const isAuthenticated = ref(false)
-const role = ref('student')
-const loginForm = ref({ username: '', password: '', role: 'student' })
+const isAuthenticated = ref(Boolean(ssoRole && initialMode === 'webuntis'))
+const role = ref(ssoRole || 'student')
+const loginForm = ref({ username: '', password: '', role: ssoRole || 'student' })
 const loginError = ref('')
 const api = (runtimeConfig.apiBaseUrl || '/api/sync-hub').replace(/\/$/, '')
 const activeMenu = ref('Stundenplan')
@@ -56,6 +59,9 @@ const syncNavItems = [
   { key: 'logs', label: 'Sync-Logs', icon: '◷' },
 ]
 
+const isTeacherRole = computed(() => role.value === 'teacher')
+const canAccessSyncHub = computed(() => ssoCanAccessSync)
+
 function syncAuthHeaders() {
   const token = sessionStorage.getItem(syncTokenKey)
   if (!token) {
@@ -65,6 +71,11 @@ function syncAuthHeaders() {
 }
 
 async function checkSyncSession() {
+  if (!canAccessSyncHub.value) {
+    syncAuthenticated.value = false
+    return false
+  }
+
   if (mode.value !== 'sync') {
     syncAuthenticated.value = true
     return true
@@ -157,6 +168,12 @@ async function loadData() {
 }
 
 onMounted(async () => {
+  if (ssoRole && mode.value === 'webuntis') {
+    role.value = ssoRole
+    loginForm.value.role = ssoRole
+    isAuthenticated.value = true
+  }
+
   const hasSyncAccess = await checkSyncSession()
   if (mode.value !== 'sync' || hasSyncAccess) {
     await loadData()
@@ -243,11 +260,20 @@ async function saveSeating() {
 }
 
 function dragStudent(event, studentId) {
+  if (!isTeacherRole.value) {
+    event.preventDefault()
+    return
+  }
+
   draggedStudentId.value = studentId
   event.dataTransfer.effectAllowed = 'move'
 }
 
 function dropStudent(event, seatNumber) {
+  if (!isTeacherRole.value) {
+    return
+  }
+
   event.preventDefault()
   if (!draggedStudentId.value) return
   const targetSeat = `seat-${seatNumber}`
@@ -269,6 +295,10 @@ function studentHasAbsence(studentName) {
 }
 
 async function uploadStudentPhoto(event, studentId) {
+  if (!isTeacherRole.value) {
+    return
+  }
+
   const file = event.target.files?.[0]
   if (!file) return
   const reader = new FileReader()
@@ -542,11 +572,34 @@ function login() {
 }
 
 function logout() {
+  if (ssoLocked) {
+    window.location.assign('/logout')
+    return
+  }
+
   isAuthenticated.value = false
-  loginForm.value = { username: '', password: '', role: role.value }
+  loginForm.value = { username: '', password: '', role: ssoRole || role.value }
 }
 
 function navigateTo(targetMode) {
+  if (targetMode === 'sync' && !canAccessSyncHub.value) {
+    notice.value = 'Für diese Rolle ist der Sync-Hub gesperrt.'
+    return
+  }
+
+  if (ssoLocked) {
+    const ssoPaths = {
+      sync: '/sync-hub/',
+      webuntis: '/webuntis/',
+      moodle: '/moodle/',
+    }
+    const targetPath = ssoPaths[targetMode]
+    if (targetPath) {
+      window.location.assign(targetPath)
+      return
+    }
+  }
+
   const targetUrl = appUrls[targetMode]
   if (targetUrl) {
     window.location.assign(targetUrl)
@@ -556,6 +609,11 @@ function navigateTo(targetMode) {
 }
 
 function navigateToSwagger() {
+  if (ssoLocked) {
+    window.location.assign('/sync-hub/swagger')
+    return
+  }
+
   const hubUrl = appUrls.sync || ''
   if (hubUrl) {
     window.location.assign(`${hubUrl.replace(/\/$/, '')}/swagger`)
@@ -563,12 +621,16 @@ function navigateToSwagger() {
   }
   window.location.assign('/swagger')
 }
+
+function navigateToSsoLogin() {
+  window.location.assign('/login')
+}
 </script>
 
 <template>
   <div class="min-h-screen bg-slate-100 text-slate-800">
     <main v-if="mode === 'sync'" class="min-h-screen bg-[#F4F7FA]">
-      <div v-if="!syncAuthenticated" class="flex min-h-screen items-center justify-center p-6">
+      <div v-if="canAccessSyncHub && !syncAuthenticated" class="flex min-h-screen items-center justify-center p-6">
         <form @submit.prevent="loginSyncHub" class="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h1 class="text-center text-2xl font-bold text-slate-900">Sync-Hub Login</h1>
           <p class="text-center text-sm text-slate-500">Anmeldung mit Admin-Konto erforderlich.</p>
@@ -579,7 +641,7 @@ function navigateToSwagger() {
         </form>
       </div>
 
-      <div v-else class="flex min-h-screen flex-col md:flex-row">
+      <div v-else-if="canAccessSyncHub" class="flex min-h-screen flex-col md:flex-row">
         <aside :class="['relative bg-[#0F1E36] px-3 py-5 text-slate-100 transition-all duration-200', syncDrawerCollapsed ? 'md:w-20' : 'md:w-60', 'w-full md:shrink-0']">
           <button
             @click="syncDrawerCollapsed = !syncDrawerCollapsed"
@@ -727,6 +789,17 @@ function navigateToSwagger() {
           </div>
         </section>
       </div>
+
+      <div v-else class="flex min-h-screen items-center justify-center p-6">
+        <div class="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h1 class="text-2xl font-bold text-slate-900">Kein Zugriff auf den Sync-Hub</h1>
+          <p class="mt-3 text-sm text-slate-600">Diese Rolle hat nur Zugriff auf Moodle- und WebUntis-Ansichten.</p>
+          <div class="mt-6 flex justify-center gap-3">
+            <button @click="navigateTo('webuntis')" class="rounded border px-4 py-2 text-sm">Zu WebUntis</button>
+            <button @click="navigateTo('moodle')" class="rounded border px-4 py-2 text-sm">Zu Moodle</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <div v-if="selectedSyncRow" @click.self="closeSyncDetails" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4">
@@ -778,7 +851,7 @@ function navigateToSwagger() {
             <div class="text-xl font-black text-[#004b87]">ATIW Moodle</div>
             <nav class="flex gap-6 text-sm"><span>Dashboard</span><span>Meine Kurse</span><span class="border-b-2 border-sky-500 pb-5 pt-5 font-bold text-sky-800">Kursbereich</span><span>Teilnehmer</span><span class="text-slate-400">Bewertungen</span></nav>
           </div>
-          <div class="flex gap-2"><button @click="navigateTo('sync')" class="rounded border px-3 py-2 text-sm">Zum Sync-Hub</button><button @click="navigateTo('webuntis')" class="rounded border px-3 py-2 text-sm">Zu WebUntis</button></div>
+          <div class="flex gap-2"><button v-if="canAccessSyncHub" @click="navigateTo('sync')" class="rounded border px-3 py-2 text-sm">Zum Sync-Hub</button><button @click="navigateTo('webuntis')" class="rounded border px-3 py-2 text-sm">Zu WebUntis</button></div>
         </div>
       </header>
 
@@ -796,16 +869,16 @@ function navigateToSwagger() {
             <select v-model="seatingClass" class="w-full rounded border px-3 py-2 text-sm"><option v-for="schoolClass in classes" :key="schoolClass.id" :value="schoolClass.name">{{ schoolClass.name }}</option></select>
             <h2 class="mb-3 mt-5 font-bold">Schüler ({{ seatingStudents.length }})</h2>
             <div class="max-h-[590px] space-y-2 overflow-y-auto pr-1">
-              <div v-for="student in seatingStudents" :key="student.id" draggable="true" @dragstart="dragStudent($event, student.id)" :class="['flex cursor-grab items-center gap-2 rounded-lg border p-2', studentHasAbsence(student.name) ? 'opacity-45 grayscale' : 'bg-white']">
+              <div v-for="student in seatingStudents" :key="student.id" :draggable="isTeacherRole" @dragstart="dragStudent($event, student.id)" :class="['flex items-center gap-2 rounded-lg border p-2', isTeacherRole ? 'cursor-grab' : 'cursor-default', studentHasAbsence(student.name) ? 'opacity-45 grayscale' : 'bg-white']">
                 <img v-if="student.photoUrl" :src="student.photoUrl" class="h-9 w-9 rounded-full object-cover" alt=""/><div v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">{{ student.name.split(' ').map(n => n[0]).join('') }}</div>
                 <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">{{ student.name }}</p><p class="text-xs text-slate-500">{{ student.className }}</p></div>
-                <label title="Foto hochladen" class="cursor-pointer text-slate-400 hover:text-sky-700"><input type="file" accept="image/*" class="hidden" @change="uploadStudentPhoto($event, student.id)"/><span>●</span></label>
+                <label v-if="isTeacherRole" title="Foto hochladen" class="cursor-pointer text-slate-400 hover:text-sky-700"><input type="file" accept="image/*" class="hidden" @change="uploadStudentPhoto($event, student.id)"/><span>●</span></label>
               </div>
             </div>
           </aside>
 
           <section class="rounded-xl border bg-white p-5">
-            <div class="mb-4 flex items-center justify-between"><div><h2 class="text-lg font-bold">Sitzplan {{ seatingClass }}</h2><p class="text-xs text-slate-500">Ziehe Schüler auf einen Platz. Der Sitzplan wird gespeichert.</p></div><button @click="saveSeating" class="rounded bg-sky-600 px-4 py-2 text-sm font-bold text-white">Sitzplan speichern</button></div>
+            <div class="mb-4 flex items-center justify-between"><div><h2 class="text-lg font-bold">Sitzplan {{ seatingClass }}</h2><p class="text-xs text-slate-500">Ziehe Schüler auf einen Platz. Der Sitzplan wird gespeichert.</p></div><button v-if="isTeacherRole" @click="saveSeating" class="rounded bg-sky-600 px-4 py-2 text-sm font-bold text-white">Sitzplan speichern</button></div>
             <div class="mb-3 h-8 rounded bg-slate-100 text-center text-xs font-bold leading-8 text-slate-400">TAFEL / LEHRERANSICHT</div>
             <div class="grid grid-cols-4 gap-3">
               <div v-for="seatNumber in 20" :key="seatNumber" @dragover.prevent @drop="dropStudent($event, seatNumber)" :class="['relative flex min-h-24 items-center justify-center rounded-lg border-2 border-dashed p-2', seating[`seat-${seatNumber}`] ? 'border-sky-200 bg-sky-50/40' : 'border-slate-200 bg-slate-50']">
@@ -814,7 +887,7 @@ function navigateToSwagger() {
                     <img v-if="studentById(seating[`seat-${seatNumber}`]).photoUrl" :src="studentById(seating[`seat-${seatNumber}`]).photoUrl" class="h-12 w-12 rounded-full object-cover shadow" alt=""/><div v-else class="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-700">{{ studentById(seating[`seat-${seatNumber}`]).name.split(' ').map(n => n[0]).join('') }}</div>
                     <p class="mt-2 text-xs font-bold">{{ studentById(seating[`seat-${seatNumber}`]).name }}</p>
                     <span v-if="studentHasAbsence(studentById(seating[`seat-${seatNumber}`]).name)" class="mt-1 rounded bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">Fehlt</span>
-                    <button v-else @click="moodleOpen = true" class="mt-1 text-[10px] font-bold text-sky-700">Fehlzeit erfassen</button>
+                    <button v-else-if="isTeacherRole" @click="moodleOpen = true" class="mt-1 text-[10px] font-bold text-sky-700">Fehlzeit erfassen</button>
                   </div>
                 </template>
                 <span v-else class="text-xs text-slate-300">Platz {{ seatNumber }}</span>
@@ -823,7 +896,7 @@ function navigateToSwagger() {
           </section>
 
           <aside class="rounded-xl border bg-white p-4">
-            <div class="mb-4 flex items-center justify-between"><h2 class="font-bold">Fehlzeiten</h2><button @click="moodleOpen = true" class="rounded bg-sky-600 px-3 py-2 text-sm font-bold text-white">Eintragen</button></div>
+            <div class="mb-4 flex items-center justify-between"><h2 class="font-bold">Fehlzeiten</h2><button v-if="isTeacherRole" @click="moodleOpen = true" class="rounded bg-sky-600 px-3 py-2 text-sm font-bold text-white">Eintragen</button></div>
             <div class="mb-3 grid grid-cols-2 gap-2"><input type="date" class="rounded border px-2 py-2 text-xs" value="2026-11-25"/><select class="rounded border px-2 py-2 text-xs"><option>Alle Status</option><option>Nicht bestätigt</option><option>Bestätigt</option><option>Entschuldigt</option></select></div>
             <div class="max-h-[540px] space-y-2 overflow-y-auto">
               <div v-for="absence in moodleAbsences.filter(item => item.class_name === seatingClass)" :key="absence.id" class="rounded-lg border p-3"><div class="flex items-start justify-between"><div><p class="text-sm font-bold">{{ absence.student_name }}</p><p class="mt-1 text-xs text-slate-500">{{ absence.date }} · {{ absence.reason }}</p></div><span :class="['rounded px-2 py-1 text-[10px] font-bold', absence.status === 'EXCUSED' ? 'bg-emerald-100 text-emerald-700' : absence.status === 'CONFIRMED' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700']">{{ absence.status }}</span></div></div>
@@ -835,7 +908,7 @@ function navigateToSwagger() {
     </main>
 
     <template v-else-if="mode === 'webuntis'">
-      <template v-if="!isAuthenticated">
+      <template v-if="!isAuthenticated && !ssoLocked">
         <main class="grid min-h-screen md:grid-cols-2">
           <section class="bg-slate-100 p-8 md:p-12">
             <div class="mb-10 flex items-center gap-3">
@@ -863,8 +936,17 @@ function navigateToSwagger() {
           </section>
         </main>
       </template>
+      <template v-else-if="!isAuthenticated && ssoLocked">
+        <main class="flex min-h-screen items-center justify-center bg-white p-6">
+          <div class="w-full max-w-xl rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
+            <h2 class="text-xl font-bold text-slate-800">SSO-Sitzung erforderlich</h2>
+            <p class="mt-3 text-sm text-slate-600">Bitte melde dich über das zentrale SSO-Gateway an.</p>
+            <button @click="navigateToSsoLogin" class="mt-5 rounded bg-slate-700 px-5 py-2 text-sm font-bold text-white">Zum SSO-Login</button>
+          </div>
+        </main>
+      </template>
       <template v-else>
-      <header class="flex h-16 items-center justify-between border-b bg-white px-3 md:px-5"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-600 font-black text-white">WU</div><div><p class="text-sm font-bold">Untis Demo Schule</p><p class="text-xs text-slate-500">WebUntis · {{ role === 'teacher' ? 'Lehrkraft' : 'Schüler/in' }}</p></div></div><div class="flex items-center gap-2"><button @click="mobileMenuOpen = !mobileMenuOpen" class="rounded border px-3 py-2 text-xs font-bold md:hidden">Menü</button><button @click="navigateTo('sync')" class="rounded bg-sky-600 px-3 py-2 text-xs font-bold text-white md:px-4 md:text-sm">Sync-Hub</button><button @click="navigateTo('moodle')" class="hidden rounded border px-4 py-2 text-sm font-bold md:block">Moodle</button><button @click="logout" class="rounded border px-3 py-2 text-xs font-bold md:text-sm">Abmelden</button></div></header>
+      <header class="flex h-16 items-center justify-between border-b bg-white px-3 md:px-5"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-600 font-black text-white">WU</div><div><p class="text-sm font-bold">Untis Demo Schule</p><p class="text-xs text-slate-500">WebUntis · {{ role === 'teacher' ? 'Lehrkraft' : 'Schüler/in' }}</p></div></div><div class="flex items-center gap-2"><button @click="mobileMenuOpen = !mobileMenuOpen" class="rounded border px-3 py-2 text-xs font-bold md:hidden">Menü</button><button v-if="canAccessSyncHub" @click="navigateTo('sync')" class="rounded bg-sky-600 px-3 py-2 text-xs font-bold text-white md:px-4 md:text-sm">Sync-Hub</button><button @click="navigateTo('moodle')" class="hidden rounded border px-4 py-2 text-sm font-bold md:block">Moodle</button><button @click="logout" class="rounded border px-3 py-2 text-xs font-bold md:text-sm">Abmelden</button></div></header>
       <div class="flex min-h-[calc(100vh-64px)] flex-col md:flex-row"><aside :class="['border-r bg-white p-3 md:w-56 md:shrink-0', mobileMenuOpen ? 'block' : 'hidden md:block']"><button v-for="menu in webuntisMenus" :key="menu" @click="activeMenu = menu; mobileMenuOpen = false" :class="['mb-1 w-full rounded px-3 py-2 text-left', activeMenu === menu ? 'bg-orange-50 font-bold text-orange-700' : 'text-slate-600']">{{ menu }}</button></aside><main class="flex-1 p-4 md:p-5"><div class="mb-5 flex items-center justify-between gap-2"><h1 class="text-xl font-bold md:text-2xl">{{ activeMenu }}</h1><div class="flex gap-2"><button v-if="activeMenu === 'Fehlzeiten' && role === 'teacher'" @click="absenceOpen = true" class="rounded bg-orange-600 px-3 py-2 text-xs font-bold text-white md:text-sm">Fehlzeit</button><button v-if="activeMenu === 'Stundenplan' && role === 'teacher'" @click="lessonOpen = true" class="rounded bg-orange-600 px-3 py-2 text-xs font-bold text-white md:text-sm">Stunde</button></div></div>
         <div v-if="activeMenu === 'Stundenplan'" class="overflow-auto rounded-2xl bg-slate-100 p-3">
           <div class="grid grid-cols-[60px_repeat(5,minmax(140px,1fr))] gap-2">

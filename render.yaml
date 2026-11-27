@@ -184,3 +184,36 @@ services:
           type: web
           name: untis-sync-hub
           envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: untis-sso-gateway
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./sso-gateway/Dockerfile
+    dockerContext: ./sso-gateway
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: 10010
+      - key: SSO_MODE
+        value: entra-header
+      - key: SSO_SESSION_SECRET
+        generateValue: true
+      - key: ENTRA_TEACHER_GROUP_IDS
+        value: ""
+      - key: SYNC_HUB_URL
+        fromService:
+          type: web
+          name: untis-sync-hub
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: WEBUNTIS_URL
+        fromService:
+          type: web
+          name: untis-webuntis
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MOODLE_URL
+        fromService:
+          type: web
+          name: untis-moodle
+          envVarKey: RENDER_EXTERNAL_URL

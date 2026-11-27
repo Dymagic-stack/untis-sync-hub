@@ -24,7 +24,10 @@ Der Container erstellt die SQLite-Datenbank bei jedem Start automatisch und füh
 
 Nach dem Start:
 
-- Anwendung: <http://localhost:8080>
+- SSO-Gateway (Startpunkt): <http://localhost:10010>
+- Sync-Hub direkt: <http://localhost:8080>
+- WebUntis Mock direkt: <http://localhost:8081>
+- Moodle Mock direkt: <http://localhost:8082>
 - Mock-API: <http://localhost:8000>
 
 Stoppen:
@@ -63,6 +66,22 @@ node openuntis-mock/mock-server.cjs
 ## Produktionsumgebung
 
 Für einen produktiven Host müssen `APP_URL`, `APP_KEY` und `MOCK_API_URL` gesetzt werden. Die SQLite-Datenbank muss persistent gemountet oder durch eine andere Laravel-kompatible Datenbank ersetzt werden.
+
+## SSO-Gateway (Reverse Proxy)
+
+Neu im Projekt ist ein dedizierter Reverse-Proxy-Service unter `sso-gateway/`, der die Rolle zentral durchsetzt:
+
+- Lehrkraft: Zugriff auf `/sync-hub`, `/webuntis`, `/moodle`
+- Schüler/in: Zugriff auf `/webuntis`, `/moodle`, aber kein Zugriff auf `/sync-hub`
+
+Lokal läuft der Gateway in `SSO_MODE=mock` (einfaches Login-Formular).
+
+Für Produktion ist `SSO_MODE=entra-header` vorgesehen. In diesem Modus erwartet der Gateway Identitätsinformationen in vorgeschalteten Request-Headern (z. B. aus einem EntraID-geschützten Edge/Ingress), u. a.:
+
+- `x-ms-client-principal-name` oder `x-forwarded-email`
+- optional Rollen/Gruppen über `x-entra-roles` oder `x-entra-groups`
+
+Lehrer-Gruppen können über `ENTRA_TEACHER_GROUP_IDS` (CSV) gesetzt werden.
 
 ## Online bereitstellen ohne lokale Installation
 
