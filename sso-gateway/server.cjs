@@ -169,7 +169,8 @@ function proxyTo(target, options = {}) {
 
   return createProxyMiddleware({
     target,
-    changeOrigin: true,
+    changeOrigin: false,
+    xfwd: true,
     ws: true,
     pathRewrite: (path, req) => {
       const stripped = stripPrefixRegex ? path.replace(stripPrefixRegex, '') : path;
@@ -185,9 +186,9 @@ const syncHubProxy = proxyTo(targets.syncHub, { stripPrefixRegex: /^\/sync-hub/ 
 const webuntisProxy = proxyTo(targets.webuntis, { injectSsoQuery: true, stripPrefixRegex: /^\/webuntis/ });
 const moodleProxy = proxyTo(targets.moodle, { injectSsoQuery: true, stripPrefixRegex: /^\/moodle/ });
 
-const syncHubAssetProxy = createProxyMiddleware({ target: targets.syncHub, changeOrigin: true, ws: true });
-const webuntisAssetProxy = createProxyMiddleware({ target: targets.webuntis, changeOrigin: true, ws: true });
-const moodleAssetProxy = createProxyMiddleware({ target: targets.moodle, changeOrigin: true, ws: true });
+const syncHubAssetProxy = createProxyMiddleware({ target: targets.syncHub, changeOrigin: false, xfwd: true, ws: true });
+const webuntisAssetProxy = createProxyMiddleware({ target: targets.webuntis, changeOrigin: false, xfwd: true, ws: true });
+const moodleAssetProxy = createProxyMiddleware({ target: targets.moodle, changeOrigin: false, xfwd: true, ws: true });
 
 function upstreamFromReferer(req) {
   const referer = req.get('referer');
