@@ -180,6 +180,47 @@ function proxyTo(target, options = {}) {
   });
 }
 
+const syncHubProxy = proxyTo(targets.syncHub, { stripPrefixRegex: /^\/sync-hub/ });
+const webuntisProxy = proxyTo(targets.webuntis, { injectSsoQuery: true, stripPrefixRegex: /^\/webuntis/ });
+const moodleProxy = proxyTo(targets.moodle, { injectSsoQuery: true, stripPrefixRegex: /^\/moodle/ });
+
+const syncHubAssetProxy = createProxyMiddleware({ target: targets.syncHub, changeOrigin: true, ws: true });
+const webuntisAssetProxy = createProxyMiddleware({ target: targets.webuntis, changeOrigin: true, ws: true });
+const moodleAssetProxy = createProxyMiddleware({ target: targets.moodle, changeOrigin: true, ws: true });
+
+function upstreamFromReferer(req) {
+  const referer = req.get('referer');
+  if (!referer) {
+    return null;
+  }
+
+  try {
+    const url = new URL(referer);
+    const path = url.pathname || '/';
+    if (path.startsWith('/sync-hub/')) return 'sync-hub';
+    if (path.startsWith('/webuntis/')) return 'webuntis';
+    if (path.startsWith('/moodle/')) return 'moodle';
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function proxySharedAssetByReferer(req, res, next) {
+  const upstream = upstreamFromReferer(req);
+  if (upstream === 'sync-hub') {
+    return syncHubAssetProxy(req, res, next);
+  }
+  if (upstream === 'webuntis') {
+    return webuntisAssetProxy(req, res, next);
+  }
+  if (upstream === 'moodle') {
+    return moodleAssetProxy(req, res, next);
+  }
+
+  return res.status(404).send('Asset-Kontext nicht aufloesbar.');
+}
+
 app.use(attachSession);
 
 app.get('/healthz', (_req, res) => {
@@ -273,6 +314,11 @@ app.get('/logout', (_req, res) => {
   res.redirect('/login');
 });
 
+app.get('/build/*', requireAuth, proxySharedAssetByReferer);
+app.get('/sync-logo.png', requireAuth, proxySharedAssetByReferer);
+app.get('/favicon.ico', requireAuth, proxySharedAssetByReferer);
+app.get('/robots.txt', requireAuth, proxySharedAssetByReferer);
+
 app.get('/', requireAuth, (req, res) => {
   const session = req.userSession;
   const syncLink = session.canAccessSync ? '<li><a href="/sync-hub/">Sync-Hub</a></li>' : '<li style="color:#9ca3af;">Sync-Hub (gesperrt)</li>';
@@ -293,9 +339,9 @@ app.get('/', requireAuth, (req, res) => {
 </body></html>`);
 });
 
-app.use('/sync-hub', requireSyncHubAccess, proxyTo(targets.syncHub, { stripPrefixRegex: /^\/sync-hub/ }));
-app.use('/webuntis', requireAuth, proxyTo(targets.webuntis, { injectSsoQuery: true, stripPrefixRegex: /^\/webuntis/ }));
-app.use('/moodle', requireAuth, proxyTo(targets.moodle, { injectSsoQuery: true, stripPrefixRegex: /^\/moodle/ }));
+app.use('/sync-hub', requireSyncHubAccess, syncHubProxy);
+app.use('/webuntis', requireAuth, webuntisProxy);
+app.use('/moodle', requireAuth, moodleProxy);
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`ATIW SSO Gateway listening on ${port}`);
